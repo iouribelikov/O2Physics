@@ -63,7 +63,7 @@ struct TrackExtension {
   void init(InitContext& context)
   {
     using namespace analysis::trackextension;
-
+    /*
     ccdb->setURL(ccdburl);
     ccdb->setCaching(true);
     ccdb->setLocalObjectValidityChecking();
@@ -72,16 +72,17 @@ struct TrackExtension {
 
     if (!o2::base::GeometryManager::isGeometryLoaded()) {
       ccdb->get<TGeoManager>(ccdbpath_geo);
-      /* it seems this is needed at this level for the material LUT to work properly */
-      /* but what happens if the run changes while doing the processing?             */
+      // it seems this is needed at this level for the material LUT to work properly
+      // but what happens if the run changes while doing the processing?            
       o2::parameters::GRPObject* grpo = ccdb->getForTimeStamp<o2::parameters::GRPObject>(ccdbpath_grp, analysis::trackextension::run3grp_timestamp);
       o2::base::Propagator::initFieldFromGRP(grpo);
       o2::base::Propagator::Instance()->setMatLUT(lut);
     }
+  */
     mRunNumber = 0;
     mMagField = 0.0;
   }
-
+  /*
   void processRun2(aod::FullTracks const& tracks, aod::Collisions const&, aod::BCsWithTimestamps const&)
   {
     using namespace analysis::trackextension;
@@ -117,7 +118,7 @@ struct TrackExtension {
     }
   }
   PROCESS_SWITCH(TrackExtension, processRun2, "Process Run2 track extension task", true);
-
+  */
   void processRun3(aod::FullTracks const& tracks, aod::Collisions const&)
   {
     using namespace analysis::trackextension;
@@ -129,7 +130,9 @@ struct TrackExtension {
     /* the double peak in the DCAxy distribution again              */
     /* so probaly the whole initalization sequence is needed        */
     /* when a new run (Run3) is processed                           */
-    o2::base::Propagator::MatCorrType matCorr = o2::base::Propagator::MatCorrType::USEMatCorrLUT;
+
+    //o2::base::Propagator::MatCorrType matCorr = o2::base::Propagator::MatCorrType::USEMatCorrLUT;
+    o2::base::Propagator::MatCorrType matCorr = o2::base::Propagator::MatCorrType::USEMatCorrNONE;
 
     for (auto& track : tracks) {
       std::array<float, 2> dca{1e10f, 1e10f};
@@ -138,7 +141,8 @@ struct TrackExtension {
           auto trackPar = getTrackPar(track);
           auto const& collision = track.collision();
           gpu::gpustd::array<float, 2> dcaInfo;
-          if (o2::base::Propagator::Instance()->propagateToDCABxByBz({collision.posX(), collision.posY(), collision.posZ()}, trackPar, 2.f, matCorr, &dcaInfo)) {
+          //if (o2::base::Propagator::Instance()->propagateToDCABxByBz({collision.posX(), collision.posY(), collision.posZ()}, trackPar, 2.f, matCorr, &dcaInfo)) {
+          if (o2::base::Propagator::Instance()->propagateToDCA({collision.posX(), collision.posY(), collision.posZ()}, trackPar, 0.005 /*bz*/, 2.f, matCorr, &dcaInfo)) {
             dca[0] = dcaInfo[0];
             dca[1] = dcaInfo[1];
           }
