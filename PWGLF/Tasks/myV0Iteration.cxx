@@ -47,6 +47,8 @@ struct LoopV0s {
   Configurable<float> cfgRmax = {"rMax", 100., "Max. allowed radius for a V0 decay"};
 
   float piMass = 0.1396;
+  float pMass = 0.9383;
+  float lambdaMass = 1.1157;
   float k0sMass = 0.4937;
 
   OutputObj<TH1F> hVtxSel{
@@ -61,6 +63,11 @@ struct LoopV0s {
     TH1F("hK0sMass", "K0s mass; Mass (GeV)", 100, k0sMass - 0.2, k0sMass + 0.2)};
   OutputObj<TH1F> hK0sMassSel{
     TH1F("hK0sMassSel", "K0s mass after selection; Mass (GeV)", 100, k0sMass - 0.2, k0sMass + 0.2)};
+
+  OutputObj<TH1F> hLambdaMass{
+    TH1F("hLambdaMass", "Lambda+LambdaBar mass; Mass (GeV)", 120, lambdaMass - 0.2, lambdaMass + 0.2)};
+  OutputObj<TH1F> hLambdaMassSel{
+    TH1F("hLambdaMassSel", "Lambda+LambdaBar mass after selection; Mass (GeV)", 120, lambdaMass - 0.2, lambdaMass + 0.2)};
 
   template <typename V0Instance>
   float v0Mass(V0Instance const& v0, float pMass, float nMass)
@@ -162,10 +169,25 @@ struct LoopV0s {
     return true;
   }
   template <typename TrackInstance>
+  bool isProton(TrackInstance const& track)
+  {
+    return !isPion(track);
+  }
+  template <typename TrackInstance>
   bool isK0sLikeV0(TrackInstance const& pos, TrackInstance const& neg)
   {
     if (!isPion(pos))
       return false;
+    if (!isPion(neg))
+      return false;
+    return true;
+  }
+  template <typename TrackInstance>
+  bool isLambdaLikeV0(TrackInstance const& pos, TrackInstance const& neg)
+  {
+    if (pos.tpcInnerParam() < 1.2)
+      if (!isProton(pos))
+        return false;
     if (!isPion(neg))
       return false;
     return true;
@@ -187,9 +209,13 @@ struct LoopV0s {
     }
 
     for (auto& v0 : v0s) {
-      // No selections yet... The default mass hypothesis is K0s...
-      auto mass = v0Mass(v0, piMass, piMass);
-      hK0sMass->Fill(mass);
+      // No selections yet...
+      auto massK0s = v0Mass(v0, piMass, piMass);
+      hK0sMass->Fill(massK0s);
+      auto massLambda = v0Mass(v0, pMass, piMass);
+      hLambdaMass->Fill(massLambda);
+      auto massLambdaBar = v0Mass(v0, piMass, pMass);
+      hLambdaMass->Fill(massLambdaBar);
 
       if (!isV0Accepted(v0))
         continue;
@@ -199,7 +225,13 @@ struct LoopV0s {
       if (isK0sLikeV0(pos, neg)) {
         hdEdxSel->Fill(pos.tpcInnerParam(), pos.tpcSignal());
         hdEdxSel->Fill(neg.tpcInnerParam(), neg.tpcSignal());
-        hK0sMassSel->Fill(mass);
+        hK0sMassSel->Fill(massK0s);
+      }
+      if (isLambdaLikeV0(pos, neg)) {
+        hLambdaMassSel->Fill(massLambda);
+      }
+      if (isLambdaLikeV0(neg, pos)) {
+        hLambdaMassSel->Fill(massLambdaBar);
       }
     }
   }
