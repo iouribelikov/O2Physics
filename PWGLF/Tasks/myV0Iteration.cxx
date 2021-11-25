@@ -53,9 +53,20 @@ struct LoopV0s {
     TH1F("hK0sMass", "K0s mass; Mass (GeV)", 100, k0sMass - 0.2, k0sMass + 0.2)};
   OutputObj<TH1F> hK0sMassSel{
     TH1F("hK0sMassSel", "K0s mass after selection; Mass (GeV)", 100, k0sMass - 0.2, k0sMass + 0.2)};
+  OutputObj<TH2F> hdEdx{
+    TH2F("hdEdx", "TPC; Momentum (GeV); dE/dx", 200, 0., 4., 200, 0., 1000)};
+  OutputObj<TH2F> hdEdxSel{
+    TH2F("hdEdxSel", "TPC after selection; Momentum (GeV); dE/dx", 200, 0., 4., 200, 0., 1000)};
 
-  void process(aod::Collision const& collision, aod::V0s const& v0s, aod::Tracks const& tracks)
+  //void process(aod::Collision const& collision, aod::V0s const& v0s, aod::Tracks const& tracks)
+  void process(aod::Collision const& collision, aod::V0s const& v0s, aod::Tracks const& tracks, aod::TracksExtra const& exts)
   {
+    for (auto& track : exts) {
+      auto mom = track.tpcInnerParam();
+      auto dex = track.tpcSignal();
+      hdEdx->Fill(mom, dex);
+    }
+
     for (auto& v0 : v0s) {
       LOGF(debug, "V0 (%d, %d, %d)", v0.posTrack().collisionId(), v0.negTrack().collisionId(), v0.collisionId());
 
@@ -103,6 +114,14 @@ struct LoopV0s {
         continue;
       if (x1 * x1 + y1 * y1 < cfgRmin * cfgRmin)
         continue;
+
+      auto pi = v0.posTrackId();
+      auto pos = *(exts.begin() + pi);
+      hdEdxSel->Fill(pos.tpcInnerParam(), pos.tpcSignal());
+
+      auto ni = v0.negTrackId();
+      auto neg = *(exts.begin() + ni);
+      hdEdxSel->Fill(neg.tpcInnerParam(), neg.tpcSignal());
 
       hK0sMassSel->Fill(mass);
     }
