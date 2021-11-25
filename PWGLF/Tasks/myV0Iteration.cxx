@@ -70,6 +70,66 @@ struct LoopV0s {
     return true;
   }
 
+  // Track-quality selector
+  template <typename TrackInstance>
+  bool isTrackAccepted(TrackInstance const& track)
+  {
+    if (abs(track.eta()) > 0.9)
+      return false;
+    return true;
+  }
+
+  // V0 selector
+  template <typename V0Instance>
+  bool isV0Accepted(V0Instance const& v0)
+  {
+    auto const& p1 = v0.posTrack();
+    if (!isTrackAccepted(p1))
+      return false;
+    auto const& p2 = v0.negTrack();
+    if (!isTrackAccepted(p2))
+      return false;
+
+    // Topological selections...
+    auto px1 = p1.px();
+    auto py1 = p1.py();
+    auto pz1 = p1.pz();
+    auto x1 = p1.x() * cos(p1.alpha()) - p1.y() * sin(p1.alpha());
+    auto y1 = p1.x() * sin(p1.alpha()) + p1.y() * cos(p1.alpha());
+    auto z1 = p1.z();
+
+    auto px2 = p2.px();
+    auto py2 = p2.py();
+    auto pz2 = p2.pz();
+    auto x2 = p2.x() * cos(p2.alpha()) - p2.y() * sin(p2.alpha());
+    auto y2 = p2.x() * sin(p2.alpha()) + p2.y() * cos(p2.alpha());
+    auto z2 = p2.z();
+
+    // DCA between daughter tracks
+    auto dd = Det(x2 - x1, y2 - y1, z2 - z1, px1, py1, pz1, px2, py2, pz2);
+    auto ax = Det(py1, pz1, py2, pz2);
+    auto ay = -Det(px1, pz1, px2, pz2);
+    auto az = Det(px1, py1, px2, py2);
+
+    auto dca = TMath::Abs(dd) / TMath::Sqrt(ax * ax + ay * ay + az * az);
+    if (dca > cfgDcaDaugh)
+      return false;
+
+    // V0 vertex position (fiducial volume)
+    double t1 = Det(x2 - x1, y2 - y1, z2 - z1, px2, py2, pz2, ax, ay, az) /
+                Det(px1, py1, pz1, px2, py2, pz2, ax, ay, az);
+
+    x1 += px1 * t1;
+    y1 += py1 * t1; //z1 += pz1*t1;
+
+    if (x1 * x1 + y1 * y1 > cfgRmax * cfgRmax)
+      return false;
+    if (x1 * x1 + y1 * y1 < cfgRmin * cfgRmin)
+      return false;
+
+    return true;
+  }
+
   //void process(aod::Collision const& collision, aod::V0s const& v0s, aod::Tracks const& tracks)
   void process(aod::Collision const& collision, aod::V0s const& v0s, aod::Tracks const& tracks, aod::TracksExtra const& exts)
   {
@@ -91,18 +151,12 @@ struct LoopV0s {
 
       auto p1 = v0.posTrack();
       auto e1 = sqrt(piMass * piMass + p1.p() * p1.p());
-      auto x1 = p1.x() * cos(p1.alpha()) - p1.y() * sin(p1.alpha());
-      auto y1 = p1.x() * sin(p1.alpha()) + p1.y() * cos(p1.alpha());
-      auto z1 = p1.z();
       auto px1 = p1.px();
       auto py1 = p1.py();
       auto pz1 = p1.pz();
 
       auto p2 = v0.negTrack();
       auto e2 = sqrt(piMass * piMass + p2.p() * p2.p());
-      auto x2 = p2.x() * cos(p2.alpha()) - p2.y() * sin(p2.alpha());
-      auto y2 = p2.x() * sin(p2.alpha()) + p2.y() * cos(p2.alpha());
-      auto z2 = p2.z();
       auto px2 = p2.px();
       auto py2 = p2.py();
       auto pz2 = p2.pz();
@@ -112,26 +166,7 @@ struct LoopV0s {
 
       hK0sMass->Fill(mass);
 
-      // DCA between daughter tracks
-      auto dd = Det(x2 - x1, y2 - y1, z2 - z1, px1, py1, pz1, px2, py2, pz2);
-      auto ax = Det(py1, pz1, py2, pz2);
-      auto ay = -Det(px1, pz1, px2, pz2);
-      auto az = Det(px1, py1, px2, py2);
-
-      auto dca = TMath::Abs(dd) / TMath::Sqrt(ax * ax + ay * ay + az * az);
-      if (dca > cfgDcaDaugh)
-        continue;
-
-      // V0 vertex
-      double t1 = Det(x2 - x1, y2 - y1, z2 - z1, px2, py2, pz2, ax, ay, az) /
-                  Det(px1, py1, pz1, px2, py2, pz2, ax, ay, az);
-
-      x1 += px1 * t1;
-      y1 += py1 * t1; //z1 += pz1*t1;
-
-      if (x1 * x1 + y1 * y1 > cfgRmax * cfgRmax)
-        continue;
-      if (x1 * x1 + y1 * y1 < cfgRmin * cfgRmin)
+      if (!isV0Accepted(v0))
         continue;
 
       auto pi = v0.posTrackId();
