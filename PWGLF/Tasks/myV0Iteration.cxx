@@ -52,14 +52,33 @@ struct LoopV0s {
   OutputObj<TH1F> hVtxSel{
     TH1F("hVtx", "Primary vertex position after selection; Z (cm)", 100, -20., 20.)};
 
-  OutputObj<TH1F> hK0sMass{
-    TH1F("hK0sMass", "K0s mass; Mass (GeV)", 100, k0sMass - 0.2, k0sMass + 0.2)};
-  OutputObj<TH1F> hK0sMassSel{
-    TH1F("hK0sMassSel", "K0s mass after selection; Mass (GeV)", 100, k0sMass - 0.2, k0sMass + 0.2)};
   OutputObj<TH2F> hdEdx{
     TH2F("hdEdx", "TPC; Momentum (GeV); dE/dx", 200, 0., 4., 200, 0., 1000)};
   OutputObj<TH2F> hdEdxSel{
     TH2F("hdEdxSel", "TPC after selection; Momentum (GeV); dE/dx", 200, 0., 4., 200, 0., 1000)};
+
+  OutputObj<TH1F> hK0sMass{
+    TH1F("hK0sMass", "K0s mass; Mass (GeV)", 100, k0sMass - 0.2, k0sMass + 0.2)};
+  OutputObj<TH1F> hK0sMassSel{
+    TH1F("hK0sMassSel", "K0s mass after selection; Mass (GeV)", 100, k0sMass - 0.2, k0sMass + 0.2)};
+
+  template <typename V0Instance>
+  float v0Mass(V0Instance const& v0, float pMass, float nMass)
+  {
+    auto const& p1 = v0.posTrack();
+    auto px1 = p1.px();
+    auto py1 = p1.py();
+    auto pz1 = p1.pz();
+
+    auto const& p2 = v0.negTrack();
+    auto px2 = p2.px();
+    auto py2 = p2.py();
+    auto pz2 = p2.pz();
+
+    auto e1 = sqrt(pMass * pMass + p1.p() * p1.p());
+    auto e2 = sqrt(nMass * nMass + p2.p() * p2.p());
+    return sqrt((e1 + e2) * (e1 + e2) - (px1 + px2) * (px1 + px2) - (py1 + py2) * (py1 + py2) - (pz1 + pz2) * (pz1 + pz2));
+  }
 
   // Collision selector
   bool isCollisionAccepted(aod::Collision const& collision)
@@ -130,7 +149,28 @@ struct LoopV0s {
     return true;
   }
 
-  //void process(aod::Collision const& collision, aod::V0s const& v0s, aod::Tracks const& tracks)
+  // Basic PID selectors
+  template <typename TrackInstance>
+  bool isPion(TrackInstance const& track)
+  {
+    auto mom = track.tpcInnerParam();
+    auto dedx = track.tpcSignal();
+    if (mom > 0.1 && dedx > 250.)
+      return false;
+    if (mom > 0.4 && dedx > 65.)
+      return false;
+    return true;
+  }
+  template <typename TrackInstance>
+  bool isK0sLikeV0(TrackInstance const& pos, TrackInstance const& neg)
+  {
+    if (!isPion(pos))
+      return false;
+    if (!isPion(neg))
+      return false;
+    return true;
+  }
+
   void process(aod::Collision const& collision, aod::V0s const& v0s, aod::Tracks const& tracks, aod::TracksExtra const& exts)
   {
 
@@ -147,37 +187,20 @@ struct LoopV0s {
     }
 
     for (auto& v0 : v0s) {
-      LOGF(debug, "V0 (%d, %d, %d)", v0.posTrack().collisionId(), v0.negTrack().collisionId(), v0.collisionId());
-
-      auto p1 = v0.posTrack();
-      auto e1 = sqrt(piMass * piMass + p1.p() * p1.p());
-      auto px1 = p1.px();
-      auto py1 = p1.py();
-      auto pz1 = p1.pz();
-
-      auto p2 = v0.negTrack();
-      auto e2 = sqrt(piMass * piMass + p2.p() * p2.p());
-      auto px2 = p2.px();
-      auto py2 = p2.py();
-      auto pz2 = p2.pz();
-
-      auto mass = (e1 + e2) * (e1 + e2) - (px1 + px2) * (px1 + px2) - (py1 + py2) * (py1 + py2) - (pz1 + pz2) * (pz1 + pz2);
-      mass = sqrt(mass);
-
+      // No selections yet... The default mass hypothesis is K0s...
+      auto mass = v0Mass(v0, piMass, piMass);
       hK0sMass->Fill(mass);
 
       if (!isV0Accepted(v0))
         continue;
 
-      auto pi = v0.posTrackId();
-      auto pos = *(exts.begin() + pi);
-      hdEdxSel->Fill(pos.tpcInnerParam(), pos.tpcSignal());
-
-      auto ni = v0.negTrackId();
-      auto neg = *(exts.begin() + ni);
-      hdEdxSel->Fill(neg.tpcInnerParam(), neg.tpcSignal());
-
-      hK0sMassSel->Fill(mass);
+      auto pos = *(exts.begin() + v0.posTrackId());
+      auto neg = *(exts.begin() + v0.negTrackId());
+      if (isK0sLikeV0(pos, neg)) {
+        hdEdxSel->Fill(pos.tpcInnerParam(), pos.tpcSignal());
+        hdEdxSel->Fill(neg.tpcInnerParam(), neg.tpcSignal());
+        hK0sMassSel->Fill(mass);
+      }
     }
   }
 };
