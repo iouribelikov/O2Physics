@@ -42,6 +42,10 @@ double Det(double a00, double a01, double a02,
 }
 
 struct LoopV0s {
+  Configurable<float> cfgDcaDaugh = {"dcaDaugh", 0.05, "Max. allowed DCA between daughters"};
+  Configurable<float> cfgRmin = {"rMin", 0.3, "Min. allowed radius for a V0 decay"};
+  Configurable<float> cfgRmax = {"rMax", 100., "Max. allowed radius for a V0 decay"};
+
   float piMass = 0.1396;
   float k0sMass = 0.4937;
 
@@ -85,7 +89,7 @@ struct LoopV0s {
       auto az = Det(px1, py1, px2, py2);
 
       auto dca = TMath::Abs(dd) / TMath::Sqrt(ax * ax + ay * ay + az * az);
-      if (dca > 0.05)
+      if (dca > cfgDcaDaugh)
         continue;
 
       // V0 vertex
@@ -95,9 +99,9 @@ struct LoopV0s {
       x1 += px1 * t1;
       y1 += py1 * t1; //z1 += pz1*t1;
 
-      if (x1 * x1 + y1 * y1 > 500 * 500)
+      if (x1 * x1 + y1 * y1 > cfgRmax * cfgRmax)
         continue;
-      if (x1 * x1 + y1 * y1 < 0.3 * 0.3)
+      if (x1 * x1 + y1 * y1 < cfgRmin * cfgRmin)
         continue;
 
       hK0sMassSel->Fill(mass);
