@@ -49,6 +49,9 @@ struct LoopV0s {
   float piMass = 0.1396;
   float k0sMass = 0.4937;
 
+  OutputObj<TH1F> hVtxSel{
+    TH1F("hVtx", "Primary vertex position after selection; Z (cm)", 100, -20., 20.)};
+
   OutputObj<TH1F> hK0sMass{
     TH1F("hK0sMass", "K0s mass; Mass (GeV)", 100, k0sMass - 0.2, k0sMass + 0.2)};
   OutputObj<TH1F> hK0sMassSel{
@@ -58,9 +61,25 @@ struct LoopV0s {
   OutputObj<TH2F> hdEdxSel{
     TH2F("hdEdxSel", "TPC after selection; Momentum (GeV); dE/dx", 200, 0., 4., 200, 0., 1000)};
 
+  // Collision selector
+  bool isCollisionAccepted(aod::Collision const& collision)
+  {
+    auto z = collision.posZ();
+    if (abs(z) > 10)
+      return false;
+    return true;
+  }
+
   //void process(aod::Collision const& collision, aod::V0s const& v0s, aod::Tracks const& tracks)
   void process(aod::Collision const& collision, aod::V0s const& v0s, aod::Tracks const& tracks, aod::TracksExtra const& exts)
   {
+
+    if (!isCollisionAccepted(collision))
+      return;
+
+    // Basic collision counter...
+    hVtxSel->Fill(collision.posZ());
+
     for (auto& track : exts) {
       auto mom = track.tpcInnerParam();
       auto dex = track.tpcSignal();
