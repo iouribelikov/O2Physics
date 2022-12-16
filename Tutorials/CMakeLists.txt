@@ -212,3 +212,14 @@ o2physics_add_dpl_workflow(hep-mc
                   SOURCES src/hepMC.cxx
                   PUBLIC_LINK_LIBRARIES O2::Framework
                   COMPONENT_NAME AnalysisTutorial)
+
+o2physics_add_dpl_workflow(taskdca
+                  SOURCES src/taskdca.cxx
+                  PUBLIC_LINK_LIBRARIES O2::Framework O2Physics::AnalysisCore
+                  COMPONENT_NAME AnalysisTutorial)
+
+o2physics_add_dpl_workflow(h3-0
+                  SOURCES src/o2at-h3-0-startingpoint.cxx
+                  PUBLIC_LINK_LIBRARIES O2::Framework O2Physics::AnalysisCore
+                  COMPONENT_NAME AnalysisTutorial)
+
