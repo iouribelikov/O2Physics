@@ -24,12 +24,22 @@ using namespace o2::framework;
 //STEP 0
 //This is an empty analysis skeleton: the starting point! 
 struct taskdca {
+  Configurable<float> Bz{"Bz", 5., "Bz component of the solenoid magnetic field (kG)"};
+  Configurable<float> minContrib{"minContrib", 7., "Min. allowed number of contributor to the PV"};
+  Configurable<float> maxContrib{"maxContrib", 33., "Max. allowed number of contributor to the PV"};
+
   // histogram created with OutputObj<TH1F>
-  OutputObj<TH1F> ncoHistogram{TH1F("ncoHistogram", "ncoHistogram", 100, 0., +4000.)};
+  OutputObj<TH1F> ncoHistogram{TH1F("ncoHistogram", "ncoHistogram", 100, 0., maxContrib)};
   OutputObj<TH1F> vtxHistogram{TH1F("vtxHistogram", "vtxHistogram", 100, -30., +30.)};
   OutputObj<TH1F> clsHistogram{TH1F("clsHistogram", "clsHistogram", 10, 0., +10.)};
   OutputObj<TH1F> etaHistogram{TH1F("etaHistogram", "etaHistogram", 200, -1., +1)};
   OutputObj<TH2F> dcaHistogram{TH2F("dcaHistogram", "dcaHistogram", 100, 0., 7., 100, -0.1, +0.1)};
+
+  void init(o2::framework::InitContext& initContext)
+  {
+    // LOG(info) << "MyMyMy "<<maxContrib<<' '<<minContrib<<'\n';
+    ncoHistogram->SetBins(100, 0., maxContrib);
+  }
 
   void process(aod::Collisions const& collisions,
 	       soa::Join<aod::FullTracks, aod::TracksDCA> const& tracks)
@@ -50,7 +60,7 @@ struct taskdca {
       auto zv=coll.posZ();
       auto nc=coll.numContrib();
       if (abs(zv)>10) continue;
-      if (abs(nc)<10) continue;
+      if (abs(nc)<minContrib) continue;
       dcaHistogram->Fill(track.pt(), track.dcaXY());
     }
   }
