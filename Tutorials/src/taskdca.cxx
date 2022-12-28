@@ -29,7 +29,7 @@ Usage:
 using namespace o2;
 using namespace o2::framework;
 
-using myTracks = soa::Join<aod::FullTracks, aod::TracksDCA>;
+using myTracks = soa::Join<aod::Tracks, aod::TracksCov, aod::TracksDCA, aod::TracksExtra>;
 using myTrack = myTracks::iterator;
 
 // Linear Vertex
@@ -185,7 +185,7 @@ Bool_t LinearVertex::update(myTrack const& track)
   std::array<Double_t, 3> p{x, y, z};
   std::array<Double_t, 3> v{track.px(), track.py(), track.pz()};
 
-  return update(p, v, 0.01 * 0.01, 0.01 * 0.01);
+  return update(p, v, track.cYY(), track.cZZ());
 }
 
 // The task...
@@ -295,6 +295,8 @@ struct taskdca {
     LinearVertex vertexer;
     for (auto& track : tracks) {
       if (!isSelected(track))
+        continue;
+      if (track.pt() < 0.3)
         continue;
 
       vertexer.update(track);
