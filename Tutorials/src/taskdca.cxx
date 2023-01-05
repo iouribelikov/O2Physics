@@ -209,6 +209,18 @@ struct taskdca {
   {
     // LOG(info) << "MyMyMy "<<maxContrib<<' '<<minContrib<<'\n';
     ncoHistogram->SetBins(100, 0., maxContrib);
+
+    Int_t nb = 100;
+    Double_t xbins[nb + 1], ptcutl = 0.1, ptcuth = 10.;
+    Double_t ybins[nb + 1], ycutl = -0.1, ycuth = +0.1;
+    Double_t a = TMath::Log(ptcuth / ptcutl) / nb;
+    Double_t d = (ycuth - ycutl) / nb;
+    for (Int_t i = 0; i <= nb; i++) {
+      xbins[i] = ptcutl * TMath::Exp(i * a);
+      ybins[i] = ycutl + d * i;
+    }
+    dcaHistogram->SetBins(nb, xbins, nb, ybins);
+    ip0Histogram->SetBins(nb, xbins, nb, ybins);
   }
 
   bool isSelected(aod::Collision const& coll)
