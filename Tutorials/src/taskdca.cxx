@@ -305,7 +305,7 @@ struct taskdca {
       return;
 
     LinearVertex vertexer;
-    for (auto& track : tracks) {
+    for (const auto& track : tracks) {
       if (!isSelected(track))
         continue;
       if (track.pt() < 0.3)
@@ -318,8 +318,11 @@ struct taskdca {
       return;
     auto vx = vertexer.getX(), vy = vertexer.getY(), vz = vertexer.getZ();
 
-    for (auto& track : tracks) {
+    for (const auto& track : tracks) {
       if (!isSelected(track, false))
+        continue;
+
+      if (!track.isPVContributor())
         continue;
 
       float ip[2];
