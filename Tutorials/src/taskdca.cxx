@@ -17,7 +17,6 @@
 /*
 Usage:
    o2-analysis-timestamp --configuration json://myconfig.json | \
-   o2-analysis-collision-converter --configuration json://myconfig.json | \
    o2-analysis-track-propagation --configuration json://myconfig.json | \
    o2-analysistutorial-taskdca --configuration json://myconfig.json -b --aod-file AO2D.root
 */

@@ -10,7 +10,6 @@
     "aod-file": "AO2D.root"
   },
   "internal-dpl-aod-spawner": "",
-  "collision-converter": "",
   "timestamp-task": {
     "verbose": "false",
     "rct-path": "RCT\/Info\/RunInformation",
