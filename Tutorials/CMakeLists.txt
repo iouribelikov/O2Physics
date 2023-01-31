@@ -218,8 +218,8 @@ o2physics_add_dpl_workflow(taskdca
                   PUBLIC_LINK_LIBRARIES O2::Framework O2Physics::AnalysisCore
                   COMPONENT_NAME AnalysisTutorial)
 
-o2physics_add_dpl_workflow(h3-0
-                  SOURCES src/o2at-h3-0-startingpoint.cxx
-                  PUBLIC_LINK_LIBRARIES O2::Framework O2Physics::AnalysisCore
+o2physics_add_dpl_workflow(taskv0s
+                  SOURCES src/taskv0s.cxx
+                  PUBLIC_LINK_LIBRARIES O2::Framework O2Physics::AnalysisCore O2::DCAFitter
                   COMPONENT_NAME AnalysisTutorial)
 
