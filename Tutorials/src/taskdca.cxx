@@ -25,6 +25,8 @@ Usage:
 #include "Framework/AnalysisTask.h"
 #include "Common/DataModel/TrackSelectionTables.h"
 
+#include "TObjArray.h"
+
 using namespace o2;
 using namespace o2::framework;
 
@@ -202,9 +204,11 @@ struct taskdca {
   OutputObj<TH1F> etaHistogram{TH1F("etaHistogram", "etaHistogram", 200, -3., +3)};
 
   OutputObj<TH2F> dcaHistogram{TH2F("dcaHistogram", "dcaHistogram", 100, 0., 7., 100, -0.1, +0.1)};
+  OutputObj<TH1D> dca_pt{"dca_pt"};
   OutputObj<TH2F> ip0Histogram{TH2F("ip0Histogram", "ip0Histogram", 100, 0., 7., 100, -0.1, +0.1)};
+  OutputObj<TH1D> ip0_pt{"ip0_pt"};
 
-  void init(o2::framework::InitContext& initContext)
+  void init(o2::framework::InitContext& ic)
   {
     // LOG(info) << "MyMyMy "<<maxContrib<<' '<<minContrib<<'\n';
     ncoHistogram->SetBins(100, 0., maxContrib);
@@ -327,11 +331,32 @@ struct taskdca {
       float ip[2];
       getImpactParams(track, vx, vy, vz, Bz, ip);
       ip0Histogram->Fill(track.pt(), ip[0]);
-
       dcaHistogram->Fill(track.pt(), track.dcaXY());
-
-      // LOG(info) << ip[0] << ' ' << track.dcaXY() << " ip_dca";
     }
+
+    if (vtxHistogram->GetEntries() == 500000) {
+      postRun();
+    }
+  }
+
+  bool postRun(/*EndOfStreamContext& , OutputObj<TH1D>&*/)
+  {
+    // LOG(info) << "postRun !!!!";
+    static TObjArray arr1;
+    ip0Histogram->FitSlicesY(0, 0, -1, 0, "QNR", &arr1);
+    auto hdpt_2 = (TH1D*)(arr1[2]);
+    hdpt_2->SetMaximum(0.030);
+    hdpt_2->SetMinimum(0.001);
+    ip0_pt.setObject(hdpt_2);
+
+    static TObjArray arr2;
+    dcaHistogram->FitSlicesY(0, 0, -1, 0, "QNR", &arr2);
+    hdpt_2 = (TH1D*)(arr2[2]);
+    hdpt_2->SetMaximum(0.030);
+    hdpt_2->SetMinimum(0.001);
+    dca_pt.setObject(hdpt_2);
+
+    return true;
   }
 };
 
