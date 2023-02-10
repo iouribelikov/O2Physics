@@ -389,6 +389,66 @@ struct taskv0s {
     return true;
   }
 
+  void processMy(aod::Collision const& collision, myTracks const& tracks)
+  {
+    static int ncol = 0;
+
+    LOG(info) << "Collision: " << ncol++;
+
+    if (!isCollisionAccepted(collision))
+      return;
+
+    // Basic collision counter...
+    hVtx->Fill(collision.posZ());
+
+    float ip[2];
+    for (const auto& track : tracks) {
+      if (!isTrackAccepted(track, ip))
+        continue;
+      hdEdx->Fill(track.tpcInnerParam(), track.tpcSignal());
+    }
+
+    for (const auto& pos : tracks) {
+      if (pos.sign() < 0)
+        continue;
+      for (const auto& neg : tracks) {
+        if (neg.sign() > 0)
+          continue;
+        if (!isV0Accepted(pos, neg)) // Masses are re-calculated here
+          continue;
+
+        // Armenteros
+        auto px = mPxp + mPxn;
+        auto py = mPyp + mPyn;
+        auto pz = mPzp + mPzn;
+        auto p = sqrt(px * px + py * py + pz * pz);
+        auto pLp = (mPxp * px + mPyp * py + mPzp * pz) / p;
+        auto pLn = (mPxn * px + mPyn * py + mPzn * pz) / p;
+        auto alpha = (pLp - pLn) / (pLp + pLn);
+        auto qt = sqrt(mPxp * mPxp + mPyp * mPyp + mPzp * mPzp - pLp * pLp);
+        hArm->Fill(alpha, qt);
+
+        hRb2->Fill(mX, mY);
+
+        // PID
+        if (isK0sLikeV0(pos, neg)) {
+          hdEdxSel->Fill(pos.tpcInnerParam(), pos.tpcSignal());
+          hdEdxSel->Fill(neg.tpcInnerParam(), neg.tpcSignal());
+          hK0sMass->Fill(mK0sMass);
+        }
+        if (isLambdaLikeV0(pos, neg)) {
+          hLambdaMass->Fill(mLambdaMass);
+        }
+        if (isLambdaLikeV0(neg, pos)) {
+          hLambdaBarMass->Fill(mLambdaBarMass);
+        }
+
+        hChi2->Fill(mChi2);
+        hDvsR->Fill(mR, mD);
+      }
+    }
+  }
+
   void process(aod::Collision const& collision, myTracks const& tracks, myV0s const& v0s)
   {
     static int ncol = 0;
