@@ -56,6 +56,10 @@ struct taskv0s {
   float lambdaMass = 1.1157;
   float k0sMass = 0.4937;
 
+  float mVx = -0.04;
+  float mVy = 0.02;
+  float mVz = 0.0;
+
   float mChi2;
   float mR;
   float mD;
@@ -99,6 +103,9 @@ struct taskv0s {
     TH2F("hArm", "Armenteros plot;#alpha;q_{T} (GeV/c)", 200, -1., 1., 200, 0, 0.25)};
   OutputObj<TH2F> hRb2{
     TH2F("hRb2", "Interaction vertices;X (cm);Y (cm)", 200, -3, 3, 200, -3, 3)};
+
+  OutputObj<TH1F> hD{
+    TH1F("hD", "Impact parameter; D (cm);", 100, -0.1, 0.1)};
 
   void init(o2::framework::InitContext& ic)
   {
@@ -191,8 +198,8 @@ struct taskv0s {
     if (abs(track.eta()) > 0.9)
       return false;
 
-    impactParams(track, 0, 0, 0, cfgBz, ip);
-    if (abs(ip[0]) < 0.02)
+    impactParams(track, mVx, mVy, mVz, cfgBz, ip);
+    if (abs(ip[0]) < 0.01)
       return false;
 
     return true;
@@ -417,6 +424,12 @@ struct taskv0s {
         if (!isV0Accepted(pos, neg)) // Masses are re-calculated here
           continue;
 
+        float dca[2]{0., 0.};
+        impactParams(pos, mVx, mVy, mVz, cfgBz, dca);
+        hD->Fill(dca[0]);
+        impactParams(neg, mVx, mVy, mVz, cfgBz, dca);
+        hD->Fill(dca[0]);
+
         // Armenteros
         auto px = mPxp + mPxn;
         auto py = mPyp + mPyn;
@@ -428,7 +441,10 @@ struct taskv0s {
         auto qt = sqrt(mPxp * mPxp + mPyp * mPyp + mPzp * mPzp - pLp * pLp);
         hArm->Fill(alpha, qt);
 
-        hRb2->Fill(mX, mY);
+        if (abs(mK0sMass - 0.5) > 0.051)
+          if (abs(mLambdaMass - 1.115) > 0.02)
+            if (abs(mLambdaBarMass - 1.115) > 0.02)
+              hRb2->Fill(mX, mY);
 
         // PID
         if (isK0sLikeV0(pos, neg)) {
@@ -483,6 +499,12 @@ struct taskv0s {
       if (!isV0Accepted(pos, neg)) // Masses are re-calculated here
         continue;
 
+      float dca[2]{0., 0.};
+      impactParams(pos, mVx, mVy, mVz, cfgBz, dca);
+      hD->Fill(dca[0]);
+      impactParams(neg, mVx, mVy, mVz, cfgBz, dca);
+      hD->Fill(dca[0]);
+
       // Armenteros
       auto px = mPxp + mPxn;
       auto py = mPyp + mPyn;
@@ -494,7 +516,10 @@ struct taskv0s {
       auto qt = sqrt(mPxp * mPxp + mPyp * mPyp + mPzp * mPzp - pLp * pLp);
       hArm->Fill(alpha, qt);
 
-      hRb2->Fill(mX, mY);
+      if (abs(mK0sMass - 0.5) > 0.051)
+        if (abs(mLambdaMass - 1.115) > 0.02)
+          if (abs(mLambdaBarMass - 1.115) > 0.02)
+            hRb2->Fill(mX, mY);
 
       // PID
       if (isK0sLikeV0(pos, neg)) {
