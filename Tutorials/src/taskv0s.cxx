@@ -107,6 +107,18 @@ struct taskv0s {
   OutputObj<TH1F> hD{
     TH1F("hD", "Impact parameter; D (cm);", 100, -0.1, 0.1)};
 
+  //IB wires
+  OutputObj<TH2F> hWxy{
+    TH2F("hWxy", "IB wires;X (cm);Y (cm)", 2000, -15, 15, 2000, -15, 15)};
+  OutputObj<TH1F> hWib{
+    TH1F("hWib", "IB wires;#phi (rad)", 1000, -3.14159, 3.14159)};
+
+  //OB wire
+  OutputObj<TH2F> hWxyo{
+    TH2F("hWxyo", "OB wires;X (cm);Y (cm)", 3000, -35, 35, 3000, -35, 35)};
+  OutputObj<TH2F> hWob{
+    TH2F("hWob", "OB wires;#phi (rad);Z (cm)", 3000, -3.14159, 3.14159, 1000, -45, 45)};
+
   void init(o2::framework::InitContext& ic)
   {
     hDvsR->SetBins(100, 0., 1.5 * cfgRmax, 100, 0., 1.5 * cfgDcaDaugh);
@@ -193,13 +205,13 @@ struct taskv0s {
   template <typename TrackInstance>
   bool isTrackAccepted(TrackInstance const& track, float ip[2])
   {
-    if (track.itsNCls() < 6)
+    if (track.itsNCls() > 4)
       return false;
-    if (abs(track.eta()) > 0.9)
+    if (abs(track.tgl()) > 1.5)
       return false;
 
     impactParams(track, mVx, mVy, mVz, cfgBz, ip);
-    if (abs(ip[0]) < 0.01)
+    if (abs(ip[0]) < 0.01/2)
       return false;
 
     return true;
@@ -443,8 +455,9 @@ struct taskv0s {
 
         if (abs(mK0sMass - 0.5) > 0.051)
           if (abs(mLambdaMass - 1.115) > 0.02)
-            if (abs(mLambdaBarMass - 1.115) > 0.02)
+            if (abs(mLambdaBarMass - 1.115) > 0.02) {
               hRb2->Fill(mX, mY);
+	    }
 
         // PID
         if (isK0sLikeV0(pos, neg)) {
@@ -469,7 +482,9 @@ struct taskv0s {
   {
     static int ncol = 0;
 
-    LOG(info) << "Collision: " << ncol++;
+    if (ncol % 1000 == 0)
+       LOG(info) << "Collision: " << ncol;
+    ncol++;
 
     if (!isCollisionAccepted(collision))
       return;
@@ -518,8 +533,20 @@ struct taskv0s {
 
       if (abs(mK0sMass - 0.5) > 0.051)
         if (abs(mLambdaMass - 1.115) > 0.02)
-          if (abs(mLambdaBarMass - 1.115) > 0.02)
+          if (abs(mLambdaBarMass - 1.115) > 0.02) {
+	    auto phi=atan2(mY, mX);
             hRb2->Fill(mX, mY);
+	    if (qt < 0.025) {
+	      if (mR > 6 && mR < 15) {
+		hWib->Fill(phi);
+		hWxy->Fill(mX,mY);
+	      }
+	      if (mR > 28 && mR < 35) {
+		hWob->Fill(phi, mZ);
+		hWxyo->Fill(mX,mY);
+	      }
+	    }
+	  }
 
       // PID
       if (isK0sLikeV0(pos, neg)) {
