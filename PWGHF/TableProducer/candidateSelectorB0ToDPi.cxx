@@ -70,13 +70,17 @@ struct HfCandidateSelectorB0ToDPi {
       return false;
     }
 
+
+/*
     // pion pt
     if (trackPi.pt() < cuts->get(pTBin, "pT Pi")) {
       return false;
     }
+*/
+
 
     // D- pt
-    if (hfCandD.pt() < cuts->get(pTBin, "pT D^{#minus}")) {
+    if (hfCandD.pt() < cuts->get(pTBin, "pT D")) {
       return false;
     }
 
@@ -121,11 +125,18 @@ struct HfCandidateSelectorB0ToDPi {
     return true;
   }
 
-  void process(aod::HfCandB0 const& hfCandB0s, soa::Join<aod::HfCand3Prong, aod::HfSelDplusToPiKPi> const&, aod::BigTracksPID const&)
-  {
-    for (auto const& hfCandB0 : hfCandB0s) { // looping over B0 candidates
+  using TracksWithSel = soa::Join<aod::BigTracksExtended, aod::TrackSelection>;
 
+  void process(aod::HfCandB0 const& hfCandB0s, soa::Join<aod::HfCand3Prong, aod::HfSelDplusToPiKPi> const&, TracksWithSel const&)
+  {
+    LOGF(info, "start process");
+    int counter = 0;
+
+    for (auto const& hfCandB0 : hfCandB0s) { // looping over B0 candidates
       int statusB0 = 0;
+
+      counter++;
+      LOG(info) << "B0 candidate: " << counter;
 
       // check if flagged as B0 → D- π+
       if (!TESTBIT(hfCandB0.hfflag(), hf_cand_b0::DecayType::B0ToDPi)) {
@@ -137,14 +148,14 @@ struct HfCandidateSelectorB0ToDPi {
       // D is always index0 and pi is index1 by default
       // auto candD = hfCandD.prong0();
       auto candD = hfCandB0.prong0_as<soa::Join<aod::HfCand3Prong, aod::HfSelDplusToPiKPi>>();
-      auto trackPi = hfCandB0.prong1_as<aod::BigTracksPID>();
+      auto trackPi = hfCandB0.prong1_as<TracksWithSel>();
 
-      // topological cuts
+      // topological cuts   
       if (!selectionTopol(hfCandB0, candD, trackPi)) {
         hfSelB0ToDPiCandidate(statusB0);
         // Printf("B0 candidate selection failed at selection topology");
         continue;
-      }
+      }      
 
       hfSelB0ToDPiCandidate(1);
       // Printf("B0 candidate selection successful, candidate should be selected");
