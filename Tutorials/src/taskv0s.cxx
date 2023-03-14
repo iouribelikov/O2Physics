@@ -78,6 +78,12 @@ struct taskv0s {
   Configurable<float> cfgDcaDaugh = {"dcaDaugh", 0.05, "Max. allowed DCA between daughters"};
   Configurable<float> cfgRmin = {"rMin", 0.5, "Min. allowed radius for a V0 decay"};
   Configurable<float> cfgRmax = {"rMax", 70., "Max. allowed radius for a V0 decay"};
+  Configurable<int> cfgStrb = {"strb", 198, "Strobe lenght in BCs"};
+
+  OutputObj<TH1F> hBc{
+    TH1F("hBc", "Collision BCs; BC", 3600, -0.5, 3600 - 0.5)};
+  OutputObj<TH2F> hBcEta{
+    TH2F("hBcEta", "Run 529005; Collision Time % Strobe Length (bc); #eta", 200, -0.5, 200 - 0.5, 50, -2.5, 2.5)};
 
   OutputObj<TH1F> hVtx{
     TH1F("hVtx", "Primary vertex position after selection; Z (cm)", 100, -20., 20.)};
@@ -198,6 +204,13 @@ struct taskv0s {
     auto z = collision.posZ();
     if (abs(z) > 10)
       return false;
+
+    /*
+    auto nc = collision.numContrib();
+    if (nc < 15)
+      return false;
+    */
+
     return true;
   }
 
@@ -211,7 +224,7 @@ struct taskv0s {
       return false;
 
     impactParams(track, mVx, mVy, mVz, cfgBz, ip);
-    if (abs(ip[0]) < 0.01/2)
+    if (abs(ip[0]) < 0.01 / 2)
       return false;
 
     return true;
@@ -408,11 +421,26 @@ struct taskv0s {
     return true;
   }
 
-  void processMy(aod::Collision const& collision, myTracks const& tracks)
+  void process(aod::Collision const& collision, myTracks const& tracks, o2::aod::BCs const& bunches)
   {
     static int ncol = 0;
+    if (ncol % 1000 == 0) {
+      LOG(info) << "Collision: " << ncol << ' ' << collision.collisionTime() << ' ' << tracks.size();
+    }
+    ncol++;
 
-    LOG(info) << "Collision: " << ncol++;
+    auto bc = collision.bc_as<aod::BCs>().globalBC();
+
+    hBc->Fill(float(bc % 3564));
+
+    /*
+    // Poor man's pileup suppression
+    static uint64_t odlBC = 0;
+    auto delta = bc - oldBC;
+    oldBC = bc;
+    if (delta <= cfgStrb)
+      return;
+    */
 
     if (!isCollisionAccepted(collision))
       return;
@@ -420,70 +448,22 @@ struct taskv0s {
     // Basic collision counter...
     hVtx->Fill(collision.posZ());
 
-    float ip[2];
     for (const auto& track : tracks) {
-      if (!isTrackAccepted(track, ip))
-        continue;
-      hdEdx->Fill(track.tpcInnerParam(), track.tpcSignal());
-    }
-
-    for (const auto& pos : tracks) {
-      if (pos.sign() < 0)
-        continue;
-      for (const auto& neg : tracks) {
-        if (neg.sign() > 0)
+      if (!track.hasTPC())
+        if (!track.hasTOF())
           continue;
-        if (!isV0Accepted(pos, neg)) // Masses are re-calculated here
-          continue;
-
-        float dca[2]{0., 0.};
-        impactParams(pos, mVx, mVy, mVz, cfgBz, dca);
-        hD->Fill(dca[0]);
-        impactParams(neg, mVx, mVy, mVz, cfgBz, dca);
-        hD->Fill(dca[0]);
-
-        // Armenteros
-        auto px = mPxp + mPxn;
-        auto py = mPyp + mPyn;
-        auto pz = mPzp + mPzn;
-        auto p = sqrt(px * px + py * py + pz * pz);
-        auto pLp = (mPxp * px + mPyp * py + mPzp * pz) / p;
-        auto pLn = (mPxn * px + mPyn * py + mPzn * pz) / p;
-        auto alpha = (pLp - pLn) / (pLp + pLn);
-        auto qt = sqrt(mPxp * mPxp + mPyp * mPyp + mPzp * mPzp - pLp * pLp);
-        hArm->Fill(alpha, qt);
-
-        if (abs(mK0sMass - 0.5) > 0.051)
-          if (abs(mLambdaMass - 1.115) > 0.02)
-            if (abs(mLambdaBarMass - 1.115) > 0.02) {
-              hRb2->Fill(mX, mY);
-	    }
-
-        // PID
-        if (isK0sLikeV0(pos, neg)) {
-          hdEdxSel->Fill(pos.tpcInnerParam(), pos.tpcSignal());
-          hdEdxSel->Fill(neg.tpcInnerParam(), neg.tpcSignal());
-          hK0sMass->Fill(mK0sMass);
-        }
-        if (isLambdaLikeV0(pos, neg)) {
-          hLambdaMass->Fill(mLambdaMass);
-        }
-        if (isLambdaLikeV0(neg, pos)) {
-          hLambdaBarMass->Fill(mLambdaBarMass);
-        }
-
-        hChi2->Fill(mChi2);
-        hDvsR->Fill(mR, mD);
-      }
+      if (track.itsNCls() != 7)
+        continue;
+      hBcEta->Fill(bc % cfgStrb, track.eta());
     }
   }
 
-  void process(aod::Collision const& collision, myTracks const& tracks, myV0s const& v0s)
+  void processV0s(aod::Collision const& collision, myTracks const& tracks, myV0s const& v0s)
   {
     static int ncol = 0;
 
     if (ncol % 1000 == 0)
-       LOG(info) << "Collision: " << ncol;
+      LOG(info) << "Collision: " << ncol;
     ncol++;
 
     if (!isCollisionAccepted(collision))
@@ -534,19 +514,19 @@ struct taskv0s {
       if (abs(mK0sMass - 0.5) > 0.051)
         if (abs(mLambdaMass - 1.115) > 0.02)
           if (abs(mLambdaBarMass - 1.115) > 0.02) {
-	    auto phi=atan2(mY, mX);
+            auto phi = atan2(mY, mX);
             hRb2->Fill(mX, mY);
-	    if (qt < 0.025) {
-	      if (mR > 6 && mR < 15) {
-		hWib->Fill(phi);
-		hWxy->Fill(mX,mY);
-	      }
-	      if (mR > 28 && mR < 35) {
-		hWob->Fill(phi, mZ);
-		hWxyo->Fill(mX,mY);
-	      }
-	    }
-	  }
+            if (qt < 0.025) {
+              if (mR > 6 && mR < 15) {
+                hWib->Fill(phi);
+                hWxy->Fill(mX, mY);
+              }
+              if (mR > 28 && mR < 35) {
+                hWob->Fill(phi, mZ);
+                hWxyo->Fill(mX, mY);
+              }
+            }
+          }
 
       // PID
       if (isK0sLikeV0(pos, neg)) {
