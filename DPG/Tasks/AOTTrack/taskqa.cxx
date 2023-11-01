@@ -31,7 +31,7 @@ using namespace o2::framework;
 struct taskqa {
   Configurable<float> Bz{"Bz", 5., "Bz component of the solenoid magnetic field (kG)"};
   Configurable<float> minContrib{"minContrib", 7., "Min. allowed number of contributor to the PV"};
-  Configurable<float> maxContrib{"maxContrib", 33., "Max. allowed number of contributor to the PV"};
+  Configurable<float> maxContrib{"maxContrib", 7777., "Max. allowed number of contributor to the PV"};
 
   // histogram created with OutputObj<TH1F>
   OutputObj<TH1F> ncoHistogram{TH1F("ncoHistogram", "ncoHistogram", 100, 0., maxContrib)};
@@ -40,8 +40,8 @@ struct taskqa {
   OutputObj<TH1F> ft0Histogram{TH1F("tf0Histogram", "tf0Histogram", 33, 0., +4000 * 30.)};
   OutputObj<TH1F> etaHistogram{TH1F("etaHistogram", "etaHistogram", 200, -3., +3)};
   // OutputObj<TH2F> dcaHistogram{TH2F("dcaHistogram", "dcaHistogram", 100, 0., 7., 100, -0.1, +0.1)};
-  OutputObj<TH2F> trdHistogram{TH2F("trdHistogram", "trdHistogram", 100, 0., 500., 100, 0., 500.)};
-  OutputObj<TH2F> mulHistogram{TH2F("mulHistogram", "mulHistogram", 33, 0., 4000 * 30, 33, 0., 7777)};
+  OutputObj<TH2F> trdHistogram{TH2F("trdHistogram", "trdHistogram;PV contributors;PV contrib. with TRD", 100, 0., 7777., 100, 0., 2500.)};
+  OutputObj<TH2F> mulHistogram{TH2F("mulHistogram", "mulHistogram;TF0 signal;PV contrib. with TRD", 100, 0., 4000 * 30, 100, 0., 2500)};
 
   void init(o2::framework::InitContext& initContext)
   {
@@ -94,7 +94,7 @@ struct taskqa {
 
   void process(aod::BC const& bc, aod::FT0s const& ft0s, aod::Collisions const& collisions, myTracks const& tracks)
   {
-    auto ncolls = collisions.size(); 
+    auto ncolls = collisions.size();
     if (ncolls == 0) {
       return;
     }
@@ -141,11 +141,12 @@ struct taskqa {
         continue;
       // dcaHistogram->Fill(track.pt(), track.dcaXY());
       nsel++;
-      if (track.hasTRD())
+      if (track.isPVContributor() && track.hasTRD())
         ntrd++;
     }
     trdHistogram->Fill(coll.numContrib(), ntrd);
-    mulHistogram->Fill(sig, nsel);
+    // mulHistogram->Fill(sig, nsel);
+    mulHistogram->Fill(sig, ntrd);
   }
 };
 
