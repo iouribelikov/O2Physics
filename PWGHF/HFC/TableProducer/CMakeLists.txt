@@ -83,3 +83,9 @@ o2physics_add_dpl_workflow(femto-dream-producer
                     SOURCES femtoDreamProducer.cxx
                     PUBLIC_LINK_LIBRARIES O2Physics::AnalysisCore O2Physics::MLCore O2Physics::EventFilteringUtils
                     COMPONENT_NAME Analysis)
+
+o2physics_add_dpl_workflow(correlator-dplus-dplus-reduced
+                    SOURCES correlatorDplusDplusReduced.cxx
+                    PUBLIC_LINK_LIBRARIES O2Physics::AnalysisCore O2Physics::EventFilteringUtils
+                    COMPONENT_NAME Analysis)
+
