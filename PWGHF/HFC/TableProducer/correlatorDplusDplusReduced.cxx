@@ -18,7 +18,6 @@
 
 #include "PWGHF/Core/DecayChannels.h"
 #include "PWGHF/Core/HfHelper.h"
-#include "PWGHF/DataModel/AliasTables.h"
 #include "PWGHF/DataModel/CandidateReconstructionTables.h"
 #include "PWGHF/DataModel/CandidateSelectionTables.h"
 #include "PWGHF/HFC/DataModel/DplusTablesReduced.h"
@@ -29,7 +28,6 @@
 #include "Common/Core/RecoDecay.h"
 #include "Common/DataModel/Centrality.h"
 
-#include <CommonConstants/PhysicsConstants.h>
 #include <Framework/AnalysisDataModel.h>
 #include <Framework/AnalysisHelpers.h>
 #include <Framework/AnalysisTask.h>
@@ -56,11 +54,7 @@ struct HfCorrelatorDplusDplusReduced {
   Configurable<int> selectionFlagDplus{"selectionFlagDplus", 1, "Selection Flag for Dplus"};
   Configurable<bool> fillCandidateLiteTable{"fillCandidateLiteTable", false, "Switch to fill lite table with candidate properties"};
   // parameters for production of training samples
-  Configurable<bool> fillOnlySignal{"fillOnlySignal", false, "Flag to fill derived tables with signal for ML trainings"};
   Configurable<bool> fillCorrBkgs{"fillCorrBkgs", false, "Flag to fill derived tables with correlated background candidates"};
-  Configurable<bool> fillOnlyBackground{"fillOnlyBackground", false, "Flag to fill derived tables with background for ML trainings"};
-  Configurable<float> downSampleBkgFactor{"downSampleBkgFactor", 1., "Fraction of background candidates to keep for ML trainings"};
-  Configurable<float> ptMaxForDownSample{"ptMaxForDownSample", 10., "Maximum pt for the application of the downsampling factor"};
   Configurable<std::vector<int>> classMlIndexes{"classMlIndexes", {0, 2}, "Indexes of ML bkg and non-prompt scores."};
   Configurable<int> centEstimator{"centEstimator", 0, "Centrality estimation (None: 0, FT0C: 2, FT0M: 3)"};
   Configurable<bool> cfgSkimmedProcessing{"cfgSkimmedProcessing", true, "Enables processing of skimmed datasets"};
@@ -74,7 +68,6 @@ struct HfCorrelatorDplusDplusReduced {
   using SelectedCandidatesMc = soa::Filtered<soa::Join<aod::HfCand3ProngWPidPiKa, aod::HfCand3ProngMcRec, aod::HfSelDplusToPiKPi>>;
   using MatchedGenCandidatesMc = soa::Filtered<soa::Join<aod::McParticles, aod::HfCand3ProngMcGen>>;
   using SelectedCandidatesMcWithMl = soa::Filtered<soa::Join<aod::HfCand3ProngWPidPiKa, aod::HfCand3ProngMcRec, aod::HfSelDplusToPiKPi, aod::HfMlDplusToPiKPi>>;
-  using TracksWPid = soa::Join<aod::Tracks, aod::TracksPidPi, aod::PidTpcTofFullPi, aod::TracksPidKa, aod::PidTpcTofFullKa>;
   using CollisionsCent = soa::Join<aod::Collisions, aod::CentFT0Cs, aod::CentFT0Ms>;
 
   Filter filterSelectCandidates = aod::hf_sel_candidate_dplus::isSelDplusToPiKPi >= selectionFlagDplus;
@@ -192,10 +185,6 @@ struct HfCorrelatorDplusDplusReduced {
         channelMc);
     } else {
       rowCandidateFull(
-        coll.numContrib(),
-        candidate.posX(),
-        candidate.posY(),
-        candidate.posZ(),
         candidate.xSecondaryVertex(),
         candidate.ySecondaryVertex(),
         candidate.zSecondaryVertex(),
@@ -275,7 +264,7 @@ struct HfCorrelatorDplusDplusReduced {
     }
   }
 
-  void processDataPerCollision(aod::Collisions const& collisions, SelectedCandidates const& candidates, TracksWPid const&, aod::BCsWithTimestamps const&)
+  void processData(aod::Collisions const& collisions, SelectedCandidates const& candidates)
   {
     static int lastRunNumber = -1;
     // reserve memory
@@ -310,15 +299,10 @@ struct HfCorrelatorDplusDplusReduced {
       }
     }
   }
-  PROCESS_SWITCH(HfCorrelatorDplusDplusReduced, processDataPerCollision, "Process data per collision", false);
+  PROCESS_SWITCH(HfCorrelatorDplusDplusReduced, processData, "Process real data", true);
 
-  void processDataPerCollisionMc(aod::Collisions const& collisions,
-                                 aod::McCollisions const& mccollisions,
-                                 SelectedCandidatesMc const& candidates,
-                                 MatchedGenCandidatesMc const& mcparticles,
-                                 TracksWPid const&, aod::BCsWithTimestamps const&)
+  void processMcRec(aod::Collisions const& collisions, SelectedCandidatesMc const& candidates)
   {
-    static int lastRunNumber = -1;
     // reserve memory
     rowCandidateFullEvents.reserve(collisions.size());
     if (fillCandidateLiteTable) {
@@ -336,65 +320,7 @@ struct HfCorrelatorDplusDplusReduced {
       }
     }
   }
-  PROCESS_SWITCH(HfCorrelatorDplusDplusReduced, processDataPerCollisionMc, "Process data per collision", false);
-
-  void processData(aod::Collisions const& collisions,
-                   soa::Filtered<soa::Join<aod::HfCand3ProngWPidPiKa, aod::HfSelDplusToPiKPi>> const& candidates,
-                   TracksWPid const&)
-  {
-    // Filling event properties
-    rowCandidateFullEvents.reserve(collisions.size());
-    for (const auto& collision : collisions) {
-      fillEvent(collision);
-    }
-
-    // Filling candidate properties
-    if (fillCandidateLiteTable) {
-      rowCandidateLite.reserve(candidates.size());
-    } else {
-      rowCandidateFull.reserve(candidates.size());
-    }
-    for (const auto& candidate : candidates) {
-      if (downSampleBkgFactor < 1.) {
-        float const pseudoRndm = candidate.ptProng0() * 1000. - static_cast<int64_t>(candidate.ptProng0() * 1000);
-        if (candidate.pt() < ptMaxForDownSample && pseudoRndm >= downSampleBkgFactor) {
-          continue;
-        }
-      }
-      fillCandidateTable<aod::Collisions>(candidate);
-    }
-  }
-
-  PROCESS_SWITCH(HfCorrelatorDplusDplusReduced, processData, "Process data", true);
-
-  void processDataWCent(CollisionsCent const& collisions,
-                        soa::Filtered<soa::Join<aod::HfCand3ProngWPidPiKa, aod::HfSelDplusToPiKPi>> const& candidates,
-                        TracksWPid const&)
-  {
-    // Filling event properties
-    rowCandidateFullEvents.reserve(collisions.size());
-    for (const auto& collision : collisions) {
-      fillEvent(collision);
-    }
-
-    // Filling candidate properties
-    if (fillCandidateLiteTable) {
-      rowCandidateLite.reserve(candidates.size());
-    } else {
-      rowCandidateFull.reserve(candidates.size());
-    }
-    for (const auto& candidate : candidates) {
-      if (downSampleBkgFactor < 1.) {
-        float const pseudoRndm = candidate.ptProng0() * 1000. - static_cast<int64_t>(candidate.ptProng0() * 1000);
-        if (candidate.pt() < ptMaxForDownSample && pseudoRndm >= downSampleBkgFactor) {
-          continue;
-        }
-      }
-      fillCandidateTable<CollisionsCent>(candidate);
-    }
-  }
-
-  PROCESS_SWITCH(HfCorrelatorDplusDplusReduced, processDataWCent, "Process data with cent", false);
+  PROCESS_SWITCH(HfCorrelatorDplusDplusReduced, processMcRec, "Process MC data at the reconstruction level", false);
 
   template <bool ApplyMl = false, typename CandTypeMcRec, typename CandTypeMcGen, typename CollType>
   void fillMcTables(CollType const& collisions,
@@ -439,7 +365,7 @@ struct HfCorrelatorDplusDplusReduced {
     }
   }
 
-  void processMc(aod::Collisions const& collisions,
+  void processMcGen(aod::Collisions const& collisions,
                  aod::McCollisions const& mccollisions,
                  SelectedCandidatesMc const& candidates,
                  MatchedGenCandidatesMc const& particles,
@@ -454,46 +380,8 @@ struct HfCorrelatorDplusDplusReduced {
     }
   }
 
-  PROCESS_SWITCH(HfCorrelatorDplusDplusReduced, processMc, "Process MC", false);
+  PROCESS_SWITCH(HfCorrelatorDplusDplusReduced, processMcGen, "Process MC data at the generator level", false);
 
-  void processMcWCent(CollisionsCent const& collisions,
-                      aod::McCollisions const& mccollisions,
-                      SelectedCandidatesMc const& candidates,
-                      MatchedGenCandidatesMc const& particles,
-                      TracksWPid const& tracks)
-  {
-    if (fillOnlySignal) {
-      fillMcTables(collisions, mccollisions, reconstructedCandSig, particles, tracks);
-    } else if (fillOnlyBackground) {
-      fillMcTables(collisions, mccollisions, reconstructedCandBkg, particles, tracks);
-    } else {
-      fillMcTables(collisions, mccollisions, candidates, particles, tracks);
-    }
-  }
-
-  PROCESS_SWITCH(HfCorrelatorDplusDplusReduced, processMcWCent, "Process MC with cent", false);
-
-  void processMcSgnWMl(aod::Collisions const& collisions,
-                       aod::McCollisions const& mccollisions,
-                       SelectedCandidatesMcWithMl const&,
-                       MatchedGenCandidatesMc const& particles,
-                       TracksWPid const& tracks)
-  {
-    fillMcTables<true>(collisions, mccollisions, reconstructedCandSigMl, particles, tracks);
-  }
-
-  PROCESS_SWITCH(HfCorrelatorDplusDplusReduced, processMcSgnWMl, "Process MC signal with ML info", false);
-
-  void processMcSgnWCentMl(CollisionsCent const& collisions,
-                           aod::McCollisions const& mccollisions,
-                           SelectedCandidatesMcWithMl const&,
-                           MatchedGenCandidatesMc const& particles,
-                           TracksWPid const& tracks)
-  {
-    fillMcTables<true>(collisions, mccollisions, reconstructedCandSigMl, particles, tracks);
-  }
-
-  PROCESS_SWITCH(HfCorrelatorDplusDplusReduced, processMcSgnWCentMl, "Process MC signal with cent and ML info", false);
 };
 
 WorkflowSpec defineDataProcessing(ConfigContext const& cfgc)
