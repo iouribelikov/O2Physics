@@ -1,0 +1,11 @@
+{ "InputDirector": {
+  "debug_mode": true,
+  "InputDescriptors": [
+    {
+      "table": "AOD/HFCANDDPFULLEV/0"
+    },
+    {
+      "table": "AOD/HFCANDDPFULL/0"
+    }
+  ]
+} }

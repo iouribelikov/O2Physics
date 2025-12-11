@@ -1,0 +1,21 @@
+{
+    "internal-dpl-clock": "",
+    "internal-dpl-aod-reader": {
+        "aod-max-io-rate": "0",
+        "time-limit": "0",
+        "orbit-offset-enumeration": "0",
+        "orbit-multiplier-enumeration": "0",
+        "start-value-enumeration": "0",
+        "end-value-enumeration": "-1",
+        "step-value-enumeration": "1"
+    },
+    "internal-dpl-aod-spawner": "",
+    "internal-dpl-aod-writer": "",
+    "hf-task-correlation-dplus-dplus-reduced": {
+	"selectionFlagDplus": "7",
+        "processLocalData": "false",
+        "processLocalDataMcRec": "true",
+        "processLocalDataMcGen": "true"
+    },
+    "internal-dpl-injected-dummy-sink": ""
+}
