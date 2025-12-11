@@ -27,6 +27,11 @@ DECLARE_SOA_TABLE(HfCandDpFullEvs, "AOD", "HFCANDDPFULLEV",
                   collision::PosY,
                   collision::PosZ);
 
+DECLARE_SOA_TABLE(HfCandDpMcEvs, "AOD", "HFCANDDPMCEV",
+                  collision::PosX,
+                  collision::PosY,
+                  collision::PosZ);
+ 
 namespace full
 {
 DECLARE_SOA_COLUMN(RSecondaryVertex, rSecondaryVertex, float);                     //! Radius of secondary vertex (cm)
@@ -49,6 +54,7 @@ DECLARE_SOA_COLUMN(Phi, phi, float);                                            
 DECLARE_SOA_COLUMN(E, e, float);                                                   //! Energy of candidate (GeV)
 DECLARE_SOA_COLUMN(Centrality, centrality, float);                                 //! Collision centrality
 DECLARE_SOA_INDEX_COLUMN(HfCandDpFullEv, hfCandDpFullEv);                          //! The collision index this candidate belongs to
+DECLARE_SOA_INDEX_COLUMN(HfCandDpMcEv, hfCandDpMcEv);                              //! The MC collision index this MC particle belongs to
 DECLARE_SOA_COLUMN(NSigTpcPi0, nSigTpcPi0, float);                                 //! TPC Nsigma separation for prong0 with pion mass hypothesis
 DECLARE_SOA_COLUMN(NSigTpcKa0, nSigTpcKa0, float);                                 //! TPC Nsigma separation for prong0 with kaon mass hypothesis
 DECLARE_SOA_COLUMN(NSigTofPi0, nSigTofPi0, float);                                 //! TOF Nsigma separation for prong0 with pion mass hypothesis
@@ -213,11 +219,12 @@ DECLARE_SOA_TABLE(HfCandDpFulls, "AOD", "HFCANDDPFULL",
                   hf_cand_3prong::OriginMcRec,
                   hf_cand_3prong::FlagMcDecayChanRec);
 
-DECLARE_SOA_TABLE(HfCandDpFullPs, "AOD", "HFCANDDPFULLP",
+DECLARE_SOA_TABLE(HfCandDpMcPs, "AOD", "HFCANDDPMCP",
                   full::Pt,
                   full::Eta,
                   full::Phi,
                   full::Y,
+                  full::HfCandDpMcEvId,
                   hf_cand_3prong::FlagMcMatchGen,
                   hf_cand_3prong::FlagMcDecayChanGen,
                   hf_cand_3prong::OriginMcGen);

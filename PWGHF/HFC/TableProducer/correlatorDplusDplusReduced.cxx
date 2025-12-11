@@ -46,10 +46,12 @@ using namespace o2::hf_centrality;
 /// Writes the full information in an output TTree
 struct HfCorrelatorDplusDplusReduced {
   Produces<o2::aod::HfCandDpFulls> rowCandidateFull;
-  Produces<o2::aod::HfCandDpFullEvs> rowCandidateFullEvents;
-  Produces<o2::aod::HfCandDpFullPs> rowCandidateFullParticles;
   Produces<o2::aod::HfCandDpLites> rowCandidateLite;
+  Produces<o2::aod::HfCandDpFullEvs> rowCandidateFullEvents;
   Produces<o2::aod::HfCandDpMls> rowCandidateMl;
+
+  Produces<o2::aod::HfCandDpMcPs> rowCandidateMcParticles;
+  Produces<o2::aod::HfCandDpMcEvs> rowCandidateMcCollisions;
 
   Configurable<int> selectionFlagDplus{"selectionFlagDplus", 1, "Selection Flag for Dplus"};
   Configurable<bool> fillCandidateLiteTable{"fillCandidateLiteTable", false, "Switch to fill lite table with candidate properties"};
@@ -74,7 +76,8 @@ struct HfCorrelatorDplusDplusReduced {
   Filter filterMcGenMatching = (nabs(o2::aod::hf_cand_3prong::flagMcMatchGen) == static_cast<int8_t>(hf_decay::hf_cand_3prong::DecayChannelMain::DplusToPiKPi)) || (fillCorrBkgs && (nabs(o2::aod::hf_cand_3prong::flagMcMatchGen) != 0));
 
   Preslice<SelectedCandidates> tracksPerCollision = o2::aod::track::collisionId;
-
+  Preslice<aod::McParticles> mcParticlesPerMcCollision = o2::aod::mcparticle::mcCollisionId;
+  
   Partition<SelectedCandidatesMc> reconstructedCandSig = (nabs(aod::hf_cand_3prong::flagMcMatchRec) == static_cast<int8_t>(hf_decay::hf_cand_3prong::DecayChannelMain::DplusToPiKPi)) || (fillCorrBkgs && (nabs(o2::aod::hf_cand_3prong::flagMcMatchRec) != 0));
   Partition<SelectedCandidatesMc> reconstructedCandBkg = nabs(aod::hf_cand_3prong::flagMcMatchRec) != static_cast<int8_t>(hf_decay::hf_cand_3prong::DecayChannelMain::DplusToPiKPi);
   Partition<SelectedCandidatesMcWithMl> reconstructedCandSigMl = (nabs(aod::hf_cand_3prong::flagMcMatchRec) == static_cast<int8_t>(hf_decay::hf_cand_3prong::DecayChannelMain::DplusToPiKPi)) || (fillCorrBkgs && (nabs(o2::aod::hf_cand_3prong::flagMcMatchRec) != 0));
@@ -322,64 +325,32 @@ struct HfCorrelatorDplusDplusReduced {
   }
   PROCESS_SWITCH(HfCorrelatorDplusDplusReduced, processMcRec, "Process MC data at the reconstruction level", false);
 
-  template <bool ApplyMl = false, typename CandTypeMcRec, typename CandTypeMcGen, typename CollType>
-  void fillMcTables(CollType const& collisions,
-                    aod::McCollisions const&,
-                    CandTypeMcRec const& candidates,
-                    CandTypeMcGen const& particles,
-                    TracksWPid const&)
+  void processMcGen(aod::McCollisions const& mccollisions, MatchedGenCandidatesMc const& mcparticles)
   {
-    // Filling event properties
-    rowCandidateFullEvents.reserve(collisions.size());
-    for (const auto& collision : collisions) {
-      fillEvent(collision);
-    }
+    // reserve memory
+    rowCandidateMcCollisions.reserve(mccollisions.size());
+    rowCandidateMcParticles.reserve(mcparticles.size());
 
-    // Filling candidate properties
-    if (fillCandidateLiteTable) {
-      rowCandidateLite.reserve(candidates.size());
-    } else {
-      rowCandidateFull.reserve(candidates.size());
-    }
-    for (const auto& candidate : candidates) {
-      if (downSampleBkgFactor < 1.) {
-        float const pseudoRndm = candidate.ptProng0() * 1000. - static_cast<int64_t>(candidate.ptProng0() * 1000);
-        if (candidate.pt() < ptMaxForDownSample && pseudoRndm >= downSampleBkgFactor) {
-          continue;
-        }
+    for (const auto& mccollision : mccollisions) { // No skimming for MC data. No Zorro !
+      rowCandidateMcCollisions(
+        mccollision.posX(),
+        mccollision.posY(),
+        mccollision.posZ());
+      const auto colId = mccollision.globalIndex();
+      const auto particlesInThisCollision = mcparticles.sliceBy(mcParticlesPerMcCollision, colId);
+      for (const auto& particle : particlesInThisCollision) {
+	rowCandidateMcParticles(
+	  particle.pt(),
+	  particle.eta(),
+	  particle.phi(),
+     	  particle.y(),
+	  colId,
+	  particle.flagMcMatchGen(),
+	  particle.flagMcDecayChanGen(),
+	  particle.originMcGen());
       }
-      fillCandidateTable<CollType, true, ApplyMl>(candidate);
-    }
-
-    // Filling particle properties
-    rowCandidateFullParticles.reserve(particles.size());
-    for (const auto& particle : particles) {
-      rowCandidateFullParticles(
-        particle.pt(),
-        particle.eta(),
-        particle.phi(),
-        RecoDecay::y(particle.pVector(), o2::constants::physics::MassDPlus),
-        particle.flagMcMatchGen(),
-        particle.flagMcDecayChanGen(),
-        particle.originMcGen());
     }
   }
-
-  void processMcGen(aod::Collisions const& collisions,
-                 aod::McCollisions const& mccollisions,
-                 SelectedCandidatesMc const& candidates,
-                 MatchedGenCandidatesMc const& particles,
-                 TracksWPid const& tracks)
-  {
-    if (fillOnlySignal) {
-      fillMcTables(collisions, mccollisions, reconstructedCandSig, particles, tracks);
-    } else if (fillOnlyBackground) {
-      fillMcTables(collisions, mccollisions, reconstructedCandBkg, particles, tracks);
-    } else {
-      fillMcTables(collisions, mccollisions, candidates, particles, tracks);
-    }
-  }
-
   PROCESS_SWITCH(HfCorrelatorDplusDplusReduced, processMcGen, "Process MC data at the generator level", false);
 
 };
