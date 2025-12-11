@@ -1,0 +1,19 @@
+{ "OutputDirector": {
+  "debug_mode": true,
+  "resfile": "myAO2D",
+  "OutputDescriptors": [
+    {
+      "table": "AOD/HFCANDDPFULLEV/0"
+    },
+    {
+      "table": "AOD/HFCANDDPFULL/0"
+    },
+    {
+      "table": "AOD/HFCANDDPMCEV/0"
+    },
+    {
+      "table": "AOD/HFCANDDPMCP/0"
+    }
+  ],
+  "ntfmerge": 1
+} }
