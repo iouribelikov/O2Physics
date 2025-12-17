@@ -60,6 +60,7 @@ struct HfCorrelatorDplusDplusReduced {
   Configurable<std::vector<int>> classMlIndexes{"classMlIndexes", {0, 2}, "Indexes of ML bkg and non-prompt scores."};
   Configurable<int> centEstimator{"centEstimator", 0, "Centrality estimation (None: 0, FT0C: 2, FT0M: 3)"};
   Configurable<bool> cfgSkimmedProcessing{"cfgSkimmedProcessing", true, "Enables processing of skimmed datasets"};
+  Configurable<bool> skipSingleD{"skipSingleD", true, "Skip collisions with one or less D candidates"};
   Configurable<std::string> ccdbPathSoftwareTrigger{"ccdbPathSoftwareTrigger", "EventFiltering/Zorro/", "ccdb path for ZORRO objects"};
 
   HfHelper hfHelper;
@@ -294,11 +295,13 @@ struct HfCorrelatorDplusDplusReduced {
         }
       }
 
-      fillEvent(collision);
       const auto colId = collision.globalIndex();
       const auto candidatesInThisCollision = candidates.sliceBy(tracksPerCollision, colId);
+      if (skipSingleD)
+	if (candidatesInThisCollision.size()<2) continue;
+      fillEvent(collision);
       for (const auto& candidate : candidatesInThisCollision) {
-        fillCandidateTable<aod::Collisions>(candidate, colId);
+        fillCandidateTable<aod::Collisions>(candidate, rowCandidateFullEvents.lastIndex());
       }
     }
   }
@@ -315,11 +318,13 @@ struct HfCorrelatorDplusDplusReduced {
     }
 
     for (const auto& collision : collisions) { // No skimming for MC data. No Zorro !
-      fillEvent(collision);
       const auto colId = collision.globalIndex();
       const auto candidatesInThisCollision = candidates.sliceBy(tracksPerCollision, colId);
+      if (skipSingleD)
+	if (candidatesInThisCollision.size()<2) continue;
+      fillEvent(collision);
       for (const auto& candidate : candidatesInThisCollision) {
-        fillCandidateTable<aod::Collisions, true>(candidate, colId);
+        fillCandidateTable<aod::Collisions, true>(candidate, rowCandidateFullEvents.lastIndex());
       }
     }
   }
@@ -332,19 +337,21 @@ struct HfCorrelatorDplusDplusReduced {
     rowCandidateMcParticles.reserve(mcparticles.size());
 
     for (const auto& mccollision : mccollisions) { // No skimming for MC data. No Zorro !
+      const auto colId = mccollision.globalIndex();
+      const auto particlesInThisCollision = mcparticles.sliceBy(mcParticlesPerMcCollision, colId);
+      if (skipSingleD)
+	if (particlesInThisCollision.size()<2) continue;
       rowCandidateMcCollisions(
         mccollision.posX(),
         mccollision.posY(),
         mccollision.posZ());
-      const auto colId = mccollision.globalIndex();
-      const auto particlesInThisCollision = mcparticles.sliceBy(mcParticlesPerMcCollision, colId);
       for (const auto& particle : particlesInThisCollision) {
 	rowCandidateMcParticles(
 	  particle.pt(),
 	  particle.eta(),
 	  particle.phi(),
      	  particle.y(),
-	  colId,
+	  rowCandidateMcCollisions.lastIndex(),
 	  particle.flagMcMatchGen(),
 	  particle.flagMcDecayChanGen(),
 	  particle.originMcGen());
