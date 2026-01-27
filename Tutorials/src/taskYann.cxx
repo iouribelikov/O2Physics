@@ -25,7 +25,7 @@
 using namespace o2;
 using namespace o2::framework;
 
-using myTracks = soa::Join<aod::TracksIU, aod::TracksCovIU, aod::TracksExtra>;
+using myTracks = soa::Join<aod::TracksIU, aod::TracksExtra>;
 using myTrack = myTracks::iterator;
 
 struct taskYann {
@@ -34,6 +34,15 @@ struct taskYann {
 
   OutputObj<TH1F> hVtx{
     TH1F("hVtx", "Primary vertex position after selection; Z (cm)", 100, -20., 20.)};
+  /*
+  OutputObj<TH1F> hMass{
+    TH1F("hMass", "Invariant mass; Mpp (GeV)", 4000, 1.8, 3.8)};
+  */
+  OutputObj<TH1F> hMass{
+    TH1F("hMass", "Invariant mass; Mppi (GeV)", 400, 1., 1.5)};
+  
+  OutputObj<TH1F> hPdgCode{
+    TH1F("hPdgCode", "PDG code; code", 2*3200, -3200, 3200)};
 
   OutputObj<TH2F> hdEdx{
     TH2F("hdEdx", "TPC; Momentum (GeV); dE/dx", 400, -4., 4., 200, 0., 1000)};
@@ -73,11 +82,44 @@ struct taskYann {
     return true;
   }
 
-  bool isProton(float p, float dedx)
+  template <typename TrackInstance>
+  bool isProton(TrackInstance const& track)
   {
+    auto p = track.tpcInnerParam();
+    auto dedx = track.tpcSignal();
     if (dedx < 600 - 500/0.58*p) return false;
     if (dedx < 250 - 200/1.1*p) return false;
     return true;
+  }
+  
+  template <typename TrackInstance>
+  float invariantMass(TrackInstance const& neg, TrackInstance const& pos)
+  {
+    const float pMass=0.938;
+    const float piMass=0.138;
+    
+    auto pxn = neg.px();
+    auto pyn = neg.py();
+    auto pzn = neg.pz();
+
+    auto pxp = pos.px();
+    auto pyp = pos.py();
+    auto pzp = pos.pz();
+
+    auto px = pxp + pxn;
+    auto py = pyp + pyn;
+    auto pz = pzp + pzn;
+    auto p2 = px * px + py * py + pz * pz;
+
+    auto p2p = pxp * pxp + pyp * pyp + pzp * pzp;
+    auto p2n = pxn * pxn + pyn * pyn + pzn * pzn;
+
+    auto ep = sqrt(piMass * piMass + p2p);
+    auto en = sqrt(pMass * pMass + p2n);
+    auto e = ep + en;
+    auto mass = sqrt(e * e - p2);
+
+    return mass;
   }
   
   void processData(aod::Collision const& collision, myTracks const& tracks)
@@ -101,12 +143,37 @@ struct taskYann {
       auto mom = track.tpcInnerParam();
       auto dedx = track.tpcSignal();
       hdEdx->Fill(sign*mom, dedx);
-      if (!isProton(mom, dedx))
+      if (!isProton(track))
 	continue;
+      
       hdEdxPr->Fill(sign*mom, dedx);
+
+      if (sign > 0) continue;
+
+      for (auto track1 = track + 1; track1 != tracks.end(); ++track1) {
+        if (!isTrackAccepted(track1))
+	  continue;
+        auto sign1 = track1.sign();
+        if (sign1 < 0) continue;
+
+	auto mass = invariantMass(track, track1);
+	hMass->Fill(mass);
+      }
     }
   }
   PROCESS_SWITCH(taskYann, processData, "Process data", true);
+
+  void processMcGen(aod::McParticles& particles) {
+    for (auto &p : particles) {
+      if (abs(p.eta())>0.9) continue;
+      auto code=p.pdgCode();
+      if (code == -3122)
+	LOG(info) << "LambdaBar: " << p.p();
+      hPdgCode->Fill(code);
+    }
+  }
+  PROCESS_SWITCH(taskYann, processMcGen, "Process MC at the generator level", true);
+  
 };
 
 WorkflowSpec defineDataProcessing(ConfigContext const& cfgc)
