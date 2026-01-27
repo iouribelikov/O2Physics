@@ -37,6 +37,8 @@ struct taskYann {
 
   OutputObj<TH2F> hdEdx{
     TH2F("hdEdx", "TPC; Momentum (GeV); dE/dx", 400, -4., 4., 200, 0., 1000)};
+  OutputObj<TH2F> hdEdxPr{
+    TH2F("hdEdxPr", "TPC; Momentum (GeV); dE/dx", 400, -4., 4., 200, 0., 1000)};
 
   void init(o2::framework::InitContext& ic)
   {
@@ -71,6 +73,13 @@ struct taskYann {
     return true;
   }
 
+  bool isProton(float p, float dedx)
+  {
+    if (dedx < 600 - 500/0.58*p) return false;
+    if (dedx < 250 - 200/1.1*p) return false;
+    return true;
+  }
+  
   void processData(aod::Collision const& collision, myTracks const& tracks)
   {
     static int ncol = 0;
@@ -90,8 +99,11 @@ struct taskYann {
 	continue;
       auto sign = track.sign();
       auto mom = track.tpcInnerParam();
-      auto dex = track.tpcSignal();
-      hdEdx->Fill(sign*mom, dex);
+      auto dedx = track.tpcSignal();
+      hdEdx->Fill(sign*mom, dedx);
+      if (!isProton(mom, dedx))
+	continue;
+      hdEdxPr->Fill(sign*mom, dedx);
     }
   }
   PROCESS_SWITCH(taskYann, processData, "Process data", true);
