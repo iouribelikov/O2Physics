@@ -173,9 +173,13 @@ struct taskYann {
   void processMcGen(aod::McParticles& particles) {
     for (auto &p : particles) {
       if (abs(p.eta())>0.9) continue;
+      if (abs(p.pt()) <1.0) continue;
+      auto x=p.vx();
+      auto y=p.vy();
+      if (x*x+y*y > 2*2) continue;
       auto code=p.pdgCode();
       if (code == -3122)
-	LOG(info) << "LambdaBar: " << p.p();
+        LOG(info) << "LambdaBar: " << p.p();
       hPdgCode->Fill(code);
     }
   }
