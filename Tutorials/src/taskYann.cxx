@@ -28,6 +28,8 @@ using namespace o2::framework;
 using myTracks = soa::Join<aod::TracksIU, aod::TracksExtra>;
 using myTrack = myTracks::iterator;
 
+using myMcTracks = soa::Join<myTracks, o2::aod::McTrackLabels>;
+
 struct taskYann {
 
   Configurable<float> cfgZmax{"zMax", 10., "Restriction on the PV position |PVz|<zMax (cm)"};
@@ -43,7 +45,7 @@ struct taskYann {
     TH1F("hMass", "Invariant mass; Mppi (GeV)", 50, 1.06, 1.16)};
   OutputObj<TH1F> hMassMatch{
     TH1F("hMassMatch", "Invariant mass; Mppi (GeV)", 50, 1.06, 1.16)};
-
+  
   OutputObj<TH1F> hPdgCode{
     TH1F("hPdgCode", "PDG code; code", 2*3200, -3200, 3200)};
 
@@ -74,9 +76,10 @@ struct taskYann {
   {
     if (abs(track.tgl()) > 0.9)
       return false;
-    
+
     if (track.itsNCls() < 7)
       return false;
+
     if (!track.hasTPC())
       return false;
 
@@ -100,11 +103,9 @@ struct taskYann {
   }
   
   template <typename TrackInstance>
-  float invariantMass(TrackInstance const& neg, TrackInstance const& pos)
+  float invariantMass(TrackInstance const& neg, TrackInstance const& pos,
+		      float nmass=0.938, float pmass=0.140)
   {
-    const float pMass=0.938;
-    const float piMass=0.138;
-    
     auto pxn = neg.px();
     auto pyn = neg.py();
     auto pzn = neg.pz();
@@ -121,13 +122,41 @@ struct taskYann {
     auto p2p = pxp * pxp + pyp * pyp + pzp * pzp;
     auto p2n = pxn * pxn + pyn * pyn + pzn * pzn;
 
-    auto ep = sqrt(piMass * piMass + p2p);
-    auto en = sqrt(pMass * pMass + p2n);
+    auto ep = sqrt(pmass * pmass + p2p);
+    auto en = sqrt(nmass * nmass + p2n);
     auto e = ep + en;
     auto mass = sqrt(e * e - p2);
 
     return mass;
   }
+  
+  void processV0s(myMcTracks const& tracks, aod::V0s const& v0s, aod::McParticles&)
+  {
+    for (auto &v0 : v0s) {
+      auto const& neg = v0.negTrack_as<myMcTracks>();
+      if (!isTrackAccepted(neg)) continue;
+      auto const& pos = v0.posTrack_as<myMcTracks>();
+      if (!isTrackAccepted(pos)) continue;
+      
+      auto mass = invariantMass(neg, pos); 
+      hMass->Fill(mass);
+      
+      if (!neg.has_mcParticle()) continue;
+      auto negPart = neg.mcParticle();
+      if (negPart.pdgCode() != -2212) continue;
+      if (!negPart.has_mothers()) continue;
+      //auto const& negMother = negPart.template mothers_first_as<aod::McParticles>();
+      //LOG(info) << "LambdaBar -3122: " << negMother.pdgCode();
+      
+      if (!pos.has_mcParticle()) continue;
+      auto posPart = pos.mcParticle();
+      if (posPart.pdgCode() != 211) continue;
+      if (!posPart.has_mothers()) continue;
+
+      hMassMatch->Fill(mass);
+    }
+  }
+  PROCESS_SWITCH(taskYann, processV0s, "Process data", true);
   
   void processData(aod::Collision const& collision, myTracks const& tracks)
   {
@@ -163,8 +192,8 @@ struct taskYann {
         auto sign1 = track1.sign();
         if (sign1 < 0) continue;
 
-	auto mass = invariantMass(track, track1);
-	hMass->Fill(mass);
+	//auto mass = invariantMass(track, track1);
+	//hMass->Fill(mass);
       }
     }
   }
@@ -178,8 +207,6 @@ struct taskYann {
       auto y=p.vy();
       if (x*x+y*y > 2*2) continue;
       auto code=p.pdgCode();
-      if (code == -3122)
-        LOG(info) << "LambdaBar: " << p.p();
       hPdgCode->Fill(code);
     }
   }
