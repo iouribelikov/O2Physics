@@ -18,6 +18,8 @@
    o2-analysistutorial-task-yann --configuration json://myconfig.json -b --aod-file AO2D.root
 */
 
+#include <TPDGCode.h>
+
 #include "Framework/runDataProcessing.h"
 #include "Framework/AnalysisTask.h"
 #include "Common/Core/trackUtilities.h"
@@ -143,20 +145,18 @@ struct taskYann {
       
       if (!neg.has_mcParticle()) continue;
       auto negPart = neg.mcParticle();
-      if (negPart.pdgCode() != -2212) continue;
+      if (negPart.pdgCode() != kProtonBar) continue;
       if (!negPart.has_mothers()) continue;
-      //auto const& negMother = negPart.template mothers_first_as<aod::McParticles>();
-      //LOG(info) << "LambdaBar -3122: " << negMother.pdgCode();
       
       if (!pos.has_mcParticle()) continue;
       auto posPart = pos.mcParticle();
-      if (posPart.pdgCode() != 211) continue;
+      if (posPart.pdgCode() != kPiPlus) continue;
       if (!posPart.has_mothers()) continue;
 
       hMassMatch->Fill(mass);
     }
   }
-  PROCESS_SWITCH(taskYann, processV0s, "Process data", true);
+  PROCESS_SWITCH(taskYann, processV0s, "Process V0s", false);
   
   void processData(aod::Collision const& collision, myTracks const& tracks)
   {
@@ -192,12 +192,70 @@ struct taskYann {
         auto sign1 = track1.sign();
         if (sign1 < 0) continue;
 
-	//auto mass = invariantMass(track, track1);
-	//hMass->Fill(mass);
+	auto mass = invariantMass(track, track1);
+	hMass->Fill(mass);
       }
     }
   }
-  PROCESS_SWITCH(taskYann, processData, "Process data", true);
+  PROCESS_SWITCH(taskYann, processData, "Process data", false);
+
+  void processMcRec(aod::Collision const& collision, myMcTracks const& tracks, aod::McParticles&)
+  {
+    static int ncol = 0;
+
+    if (ncol % 1000 == 0)
+      LOG(info) << "Collision: " << ncol;
+    ncol++;
+
+    if (!isCollisionAccepted(collision))
+      return;
+
+    // Collision counter...
+    hVtx->Fill(collision.posZ());
+
+    for (auto& track : tracks) {
+      if (!isTrackAccepted(track))
+	continue;
+      auto sign = track.sign();
+      auto mom = track.tpcInnerParam();
+      auto dedx = track.tpcSignal();
+      hdEdx->Fill(sign*mom, dedx);
+
+      if (!track.has_mcParticle()) continue;
+      auto negPart = track.mcParticle();
+      if (!negPart.has_mothers()) continue;
+      auto const& negMother = negPart.template mothers_first_as<aod::McParticles>();
+      if (negPart.pdgCode() != kProtonBar) continue;
+
+      //if (!isProton(track)) continue;
+
+      hdEdxPr->Fill(sign*mom, dedx);
+
+      if (sign > 0) continue;
+
+      for (auto track1 = track + 1; track1 != tracks.end(); ++track1) {
+        if (!isTrackAccepted(track1))
+	  continue;
+        auto sign1 = track1.sign();
+        if (sign1 < 0) continue;
+
+	auto mass = invariantMass(track, track1);
+	hMass->Fill(mass);
+
+        if (!track1.has_mcParticle()) continue;
+        auto posPart = track1.mcParticle();
+        if (!posPart.has_mothers()) continue;
+        auto const& posMother = posPart.template mothers_first_as<aod::McParticles>();
+
+        if (posMother.pdgCode() != kLambda0Bar) continue;
+	if (posMother != negMother) continue;
+
+	hMassMatch->Fill(mass);
+      }
+    }
+
+  }
+  PROCESS_SWITCH(taskYann, processMcRec, "Process MC at the reconstruction level", true);
 
   void processMcGen(aod::McParticles& particles) {
     for (auto &p : particles) {
