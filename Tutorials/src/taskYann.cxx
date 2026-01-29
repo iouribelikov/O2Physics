@@ -34,13 +34,16 @@ struct taskYann {
 
   OutputObj<TH1F> hVtx{
     TH1F("hVtx", "Primary vertex position after selection; Z (cm)", 100, -20., 20.)};
+
   /*
   OutputObj<TH1F> hMass{
     TH1F("hMass", "Invariant mass; Mpp (GeV)", 4000, 1.8, 3.8)};
   */
   OutputObj<TH1F> hMass{
-    TH1F("hMass", "Invariant mass; Mppi (GeV)", 400, 1., 1.5)};
-  
+    TH1F("hMass", "Invariant mass; Mppi (GeV)", 50, 1.06, 1.16)};
+  OutputObj<TH1F> hMassMatch{
+    TH1F("hMassMatch", "Invariant mass; Mppi (GeV)", 50, 1.06, 1.16)};
+
   OutputObj<TH1F> hPdgCode{
     TH1F("hPdgCode", "PDG code; code", 2*3200, -3200, 3200)};
 
@@ -87,8 +90,12 @@ struct taskYann {
   {
     auto p = track.tpcInnerParam();
     auto dedx = track.tpcSignal();
+    if (p < 0.2) return false;
+    if (dedx < 40) return false;
+    if (dedx < 40) return false;
     if (dedx < 600 - 500/0.58*p) return false;
     if (dedx < 250 - 200/1.1*p) return false;
+    if (dedx < 120 - 120/3.0*p) return false;
     return true;
   }
   
