@@ -24,6 +24,9 @@
 #include "Framework/AnalysisTask.h"
 #include "Common/Core/trackUtilities.h"
 
+#include "Common/Core/PID/PIDTOF.h"
+#include <CommonConstants/PhysicsConstants.h>
+
 using namespace o2;
 using namespace o2::framework;
 
@@ -51,10 +54,15 @@ struct taskYann {
   OutputObj<TH1F> hPdgCode{
     TH1F("hPdgCode", "PDG code; code", 2*3200, -3200, 3200)};
 
-  OutputObj<TH2F> hdEdx{
-    TH2F("hdEdx", "TPC; Momentum (GeV); dE/dx", 400, -4., 4., 200, 0., 1000)};
-  OutputObj<TH2F> hdEdxPr{
-    TH2F("hdEdxPr", "TPC; Momentum (GeV); dE/dx", 400, -4., 4., 200, 0., 1000)};
+  OutputObj<TH2F> hTpc{
+    TH2F("hTpc", "TPC; Momentum (GeV); dE/dx", 400, -4., 4., 200, 0., 1000)};
+  OutputObj<TH2F> hTpcPr{
+    TH2F("hTpcPr", "TPC; Momentum (GeV); dE/dx", 400, -4., 4., 200, 0., 1000)};
+
+  OutputObj<TH2F> hTof{
+    TH2F("hTof", "TOF; Momentum (GeV); beta", 500, -5., 5., 220, 0., 1.1)};
+  OutputObj<TH2F> hTofPr{
+    TH2F("hTofPr", "TOF; Momentum (GeV); beta", 500, -5., 5., 220, 0., 1.1)};
 
   void init(o2::framework::InitContext& ic)
   {
@@ -72,17 +80,28 @@ struct taskYann {
     return true;
   }
 
+  template <typename TrackInstance>
+  float tofBeta(TrackInstance const& track)
+  {
+    auto length = track.length();
+    auto tofSignal = o2::pid::tof::TOFSignal<TrackInstance>::GetTOFSignal(track);
+    return length / tofSignal * o2::constants::physics::invLightSpeedCm2PS;
+  }
+
   // Track-quality selector
   template <typename TrackInstance>
   bool isTrackAccepted(TrackInstance const& track)
   {
+    if (!track.hasITS())
+      return false;
+
+    if (!track.hasTPC())
+      return false;
+
     if (abs(track.tgl()) > 0.9)
       return false;
 
     if (track.itsNCls() < 7)
-      return false;
-
-    if (!track.hasTPC())
       return false;
 
     // Some other selections
@@ -96,7 +115,6 @@ struct taskYann {
     auto p = track.tpcInnerParam();
     auto dedx = track.tpcSignal();
     if (p < 0.2) return false;
-    if (dedx < 40) return false;
     if (dedx < 40) return false;
     if (dedx < 600 - 500/0.58*p) return false;
     if (dedx < 250 - 200/1.1*p) return false;
@@ -178,11 +196,11 @@ struct taskYann {
       auto sign = track.sign();
       auto mom = track.tpcInnerParam();
       auto dedx = track.tpcSignal();
-      hdEdx->Fill(sign*mom, dedx);
+      hTpc->Fill(sign*mom, dedx);
       if (!isProton(track))
 	continue;
       
-      hdEdxPr->Fill(sign*mom, dedx);
+      hTpcPr->Fill(sign*mom, dedx);
 
       if (sign > 0) continue;
 
@@ -219,7 +237,9 @@ struct taskYann {
       auto sign = track.sign();
       auto mom = track.tpcInnerParam();
       auto dedx = track.tpcSignal();
-      hdEdx->Fill(sign*mom, dedx);
+      hTpc->Fill(sign*mom, dedx);
+      auto beta = tofBeta(track);
+      hTof->Fill(sign*mom, beta);
 
       if (!track.has_mcParticle()) continue;
       auto negPart = track.mcParticle();
@@ -229,7 +249,8 @@ struct taskYann {
 
       //if (!isProton(track)) continue;
 
-      hdEdxPr->Fill(sign*mom, dedx);
+      hTpcPr->Fill(sign*mom, dedx);
+      hTofPr->Fill(sign*mom, beta);
 
       if (sign > 0) continue;
 
