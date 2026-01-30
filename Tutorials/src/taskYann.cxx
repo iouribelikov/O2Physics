@@ -109,7 +109,21 @@ struct taskYann {
   }
 
   template <typename TrackInstance>
-  bool isProton(TrackInstance const& track)
+  bool isTofProton(TrackInstance const& track)
+  {
+    auto p = track.tpcInnerParam();
+    auto beta = tofBeta(track);
+    if (p < 0.5)
+      return false;
+    if (beta > 0.97)
+      return false;
+    if (beta > 0.6 + (1 - 0.6) / 2 * p)
+      return false;
+    return true;
+  }
+
+  template <typename TrackInstance>
+  bool isTpcProton(TrackInstance const& track)
   {
     auto p = track.tpcInnerParam();
     auto dedx = track.tpcSignal();
@@ -209,8 +223,8 @@ struct taskYann {
       auto mom = track.tpcInnerParam();
       auto dedx = track.tpcSignal();
       hTpc->Fill(sign * mom, dedx);
-      if (!isProton(track))
-	continue;
+      if (!isTpcProton(track))
+        continue;
 
       hTpcPr->Fill(sign * mom, dedx);
 
@@ -264,7 +278,9 @@ struct taskYann {
       if (negPart.pdgCode() != kProtonBar)
         continue;
 
-      //if (!isProton(track)) continue;
+      if (!isTofProton(track))
+        if (!isTpcProton(track))
+          continue;
 
       hTpcPr->Fill(sign * mom, dedx);
       hTofPr->Fill(sign * mom, beta);
