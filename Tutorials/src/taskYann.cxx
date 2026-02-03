@@ -57,6 +57,8 @@ struct taskYann {
     TH2F("hTpc", "TPC; Momentum (GeV); dE/dx", 400, -4., 4., 200, 0., 1000)};
   OutputObj<TH2F> hTpcPr{
     TH2F("hTpcPr", "TPC; Momentum (GeV); dE/dx", 400, -4., 4., 200, 0., 1000)};
+  OutputObj<TH2F> hTpcTofPr{
+    TH2F("hTpcTofPr", "TPC+TOF; Momentum (GeV); dE/dx", 400, -4., 4., 200, 0., 1000)};
 
   OutputObj<TH2F> hTof{
     TH2F("hTof", "TOF; Momentum (GeV); beta", 500, -5., 5., 220, 0., 1.1)};
@@ -266,8 +268,6 @@ struct taskYann {
       auto mom = track.tpcInnerParam();
       auto dedx = track.tpcSignal();
       hTpc->Fill(sign * mom, dedx);
-      auto beta = tofBeta(track);
-      hTof->Fill(sign * mom, beta);
 
       if (!track.has_mcParticle())
         continue;
@@ -275,15 +275,24 @@ struct taskYann {
       if (!negPart.has_mothers())
         continue;
       auto const& negMother = negPart.template mothers_first_as<aod::McParticles>();
-      if (negPart.pdgCode() != kProtonBar)
-        continue;
+      // if (negPart.pdgCode() != kProtonBar)
+      //   continue;
 
-      if (!isTofProton(track))
+      if (!track.hasTOF()) {
         if (!isTpcProton(track))
           continue;
+        hTpcPr->Fill(sign * mom, dedx);
+      } else {
+        auto beta = tofBeta(track);
+        hTof->Fill(sign * mom, beta);
+        if (!isTofProton(track))
+          continue;
+        hTofPr->Fill(sign * mom, beta);
+        if (!isTpcProton(track))
+          continue;
+      }
 
-      hTpcPr->Fill(sign * mom, dedx);
-      hTofPr->Fill(sign * mom, beta);
+      hTpcTofPr->Fill(sign * mom, dedx);
 
       if (sign > 0)
         continue;
