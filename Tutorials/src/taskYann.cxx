@@ -204,7 +204,8 @@ struct taskYann {
   }
   PROCESS_SWITCH(taskYann, processV0s, "Process V0s", false);
 
-  void processData(aod::Collision const& collision, myTracks const& tracks)
+  template <typename TTracks>
+  void process(aod::Collision const& collision, TTracks const& tracks)
   {
     static int ncol = 0;
 
@@ -225,58 +226,17 @@ struct taskYann {
       auto mom = track.tpcInnerParam();
       auto dedx = track.tpcSignal();
       hTpc->Fill(sign * mom, dedx);
-      if (!isTpcProton(track))
-        continue;
 
-      hTpcPr->Fill(sign * mom, dedx);
-
-      if (sign > 0)
-        continue;
-
-      for (auto track1 = track + 1; track1 != tracks.end(); ++track1) {
-        if (!isTrackAccepted(track1))
-          continue;
-        auto sign1 = track1.sign();
-        if (sign1 < 0)
-          continue;
-
-        auto mass = invariantMass(track, track1);
-        hMass->Fill(mass);
+      int64_t negMotherIdx = -1;
+      if constexpr (requires { track.has_mcParticle(); }) {
+        if (track.has_mcParticle()) {
+          auto const& negPart = track.mcParticle();
+          if (negPart.has_mothers()) {
+            auto const& negMother = negPart.template mothers_first_as<aod::McParticles>();
+            negMotherIdx = negMother.globalIndex();
+          }
+        }
       }
-    }
-  }
-  PROCESS_SWITCH(taskYann, processData, "Process data", false);
-
-  void processMcRec(aod::Collision const& collision, myMcTracks const& tracks, aod::McParticles&)
-  {
-    static int ncol = 0;
-
-    if (ncol % 1000 == 0)
-      LOG(info) << "Collision: " << ncol;
-    ncol++;
-
-    if (!isCollisionAccepted(collision))
-      return;
-
-    // Collision counter...
-    hVtx->Fill(collision.posZ());
-
-    for (auto& track : tracks) {
-      if (!isTrackAccepted(track))
-        continue;
-      auto sign = track.sign();
-      auto mom = track.tpcInnerParam();
-      auto dedx = track.tpcSignal();
-      hTpc->Fill(sign * mom, dedx);
-
-      if (!track.has_mcParticle())
-        continue;
-      auto negPart = track.mcParticle();
-      if (!negPart.has_mothers())
-        continue;
-      auto const& negMother = negPart.template mothers_first_as<aod::McParticles>();
-      // if (negPart.pdgCode() != kProtonBar)
-      //   continue;
 
       if (!track.hasTOF()) {
         if (!isTpcProton(track))
@@ -307,21 +267,35 @@ struct taskYann {
         auto mass = invariantMass(track, track1);
         hMass->Fill(mass);
 
-        if (!track1.has_mcParticle())
-          continue;
-        auto posPart = track1.mcParticle();
-        if (!posPart.has_mothers())
-          continue;
-        auto const& posMother = posPart.template mothers_first_as<aod::McParticles>();
+        if constexpr (requires { track1.has_mcParticle(); }) {
+          if (!track1.has_mcParticle())
+            continue;
+          auto const& posPart = track1.mcParticle();
+          if (!posPart.has_mothers())
+            continue;
+          auto const& posMother = posPart.template mothers_first_as<aod::McParticles>();
 
-        if (posMother.pdgCode() != kLambda0Bar)
-          continue;
-        if (posMother != negMother)
-          continue;
+          if (posMother.pdgCode() != kLambda0Bar)
+            continue;
 
-        hMassMatch->Fill(mass);
+          if (posMother.globalIndex() != negMotherIdx)
+            continue;
+
+          hMassMatch->Fill(mass);
+        }
       }
     }
+  }
+
+  void processData(aod::Collision const& collision, myTracks const& tracks)
+  {
+    process(collision, tracks);
+  }
+  PROCESS_SWITCH(taskYann, processData, "Process data", false);
+
+  void processMcRec(aod::Collision const& collision, myMcTracks const& tracks, aod::McParticles&)
+  {
+    process(collision, tracks);
   }
   PROCESS_SWITCH(taskYann, processMcRec, "Process MC at the reconstruction level", true);
 
