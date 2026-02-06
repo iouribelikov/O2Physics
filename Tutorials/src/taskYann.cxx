@@ -170,40 +170,6 @@ struct taskYann {
     return mass;
   }
 
-  void processV0s(myMcTracks const& tracks, aod::V0s const& v0s, aod::McParticles&)
-  {
-    for (auto& v0 : v0s) {
-      auto const& neg = v0.negTrack_as<myMcTracks>();
-      if (!isTrackAccepted(neg))
-        continue;
-      auto const& pos = v0.posTrack_as<myMcTracks>();
-      if (!isTrackAccepted(pos))
-        continue;
-
-      auto mass = invariantMass(neg, pos);
-      hMass->Fill(mass);
-
-      if (!neg.has_mcParticle())
-        continue;
-      auto negPart = neg.mcParticle();
-      if (negPart.pdgCode() != kProtonBar)
-        continue;
-      if (!negPart.has_mothers())
-        continue;
-
-      if (!pos.has_mcParticle())
-        continue;
-      auto posPart = pos.mcParticle();
-      if (posPart.pdgCode() != kPiPlus)
-        continue;
-      if (!posPart.has_mothers())
-        continue;
-
-      hMassMatch->Fill(mass);
-    }
-  }
-  PROCESS_SWITCH(taskYann, processV0s, "Process V0s", false);
-
   template <typename TTracks>
   void process(aod::Collision const& collision, TTracks const& tracks)
   {

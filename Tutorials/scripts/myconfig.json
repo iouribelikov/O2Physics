@@ -18,7 +18,6 @@
     "tracks-extra-spawner": "",
     "task-yann": {
         "zMax": "10",
-        "processV0s": "false",
         "processData": "false",
         "processMcRec": "true",
         "processMcGen": "true"
