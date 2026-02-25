@@ -101,8 +101,28 @@ struct HfTaskCorrelationDplusDplusReduced {
     for (const auto& cand1 : localCandidates) {
       auto mass1 = cand1.m();
       registry.fill(HIST("hMassDplus"), mass1);
+      auto sign1 = 1;
+      if (cand1.pt() < 0) {
+        sign1 = -1;
+      }
       if (std::abs(cand1.flagMcMatchRec()) == hf_decay::hf_cand_3prong::DecayChannelMain::DplusToPiKPi)
         registry.fill(HIST("hMassDplusMatched"), mass1);
+      for (auto cand2 = cand1 + 1; cand2 != localCandidates.end(); ++cand2) {
+        auto mass2 = cand2.m();
+        auto sign2 = 1;
+        if (cand2.pt() < 0) {
+          sign2 = -1;
+        }
+        if (sign1 == sign2) {
+          if (sign1 == 1) {
+            registry.fill(HIST("hMassDplusPair"), mass2, mass1);
+          } else {
+            registry.fill(HIST("hMassDminusPair"), mass2, mass1);
+          }
+        } else {
+          registry.fill(HIST("hMassDplusminusPair"), mass2, mass1);
+        }
+      }
     }
   }
   PROCESS_SWITCH(HfTaskCorrelationDplusDplusReduced, processLocalDataMcRec, "Process local MC data", false);
