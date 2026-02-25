@@ -58,6 +58,7 @@ struct HfTaskCorrelationDplusDplusReduced {
     registry.add("hMassDminus", "D- candidates;inv. mass (#pi#pi K) (GeV/#it{c}^{2}))", {HistType::kTH1F, {{120, 1.5848, 2.1848}}});
     registry.add("hMassDplusMatched", "D+ matched candidates;inv. mass (#pi#pi K) (GeV/#it{c}^{2}))", {HistType::kTH1F, {{120, 1.5848, 2.1848}}});
     registry.add("hMassDminusMatched", "D- matched candidates;inv. mass (#pi#pi K) (GeV/#it{c}^{2}))", {HistType::kTH1F, {{120, 1.5848, 2.1848}}});
+    registry.add("hMassDplusPairMatched", "D+D+ matched candidates;inv. mass2 (#pi#pi K) (GeV/#it{c}^{2});inv. mass1 (#pi#pi K) (GeV/#it{c}^{2}))", {HistType::kTH2F, {{120, 1.5848, 2.1848}, {120, 1.5848, 2.1848}}});
     registry.add("hMassDplusminusPair", "D plus-minus pair candidates;inv. mass (#pi#pi K) (GeV/#it{c}^{2});inv. mass (#pi#pi K) (GeV/#it{c}^{2})", {HistType::kTH2F, {{120, 1.5848, 2.1848}, {120, 1.5848, 2.1848}}});
     registry.add("hMassDplusPair", "D plus pair candidates;inv. mass (#pi#pi K) (GeV/#it{c}^{2});inv. mass (#pi#pi K) (GeV/#it{c}^{2})", {HistType::kTH2F, {{120, 1.5848, 2.1848}, {120, 1.5848, 2.1848}}});
     registry.add("hMassDminusPair", "D minus pair candidates;inv. mass (#pi#pi K) (GeV/#it{c}^{2});inv. mass (#pi#pi K) (GeV/#it{c}^{2})", {HistType::kTH2F, {{120, 1.5848, 2.1848}, {120, 1.5848, 2.1848}}});
@@ -125,6 +126,9 @@ struct HfTaskCorrelationDplusDplusReduced {
         if (sign1 == sign2) {
           if (sign1 == 1) {
             registry.fill(HIST("hMassDplusPair"), mass2, mass1);
+            if (cand2.flagMcMatchRec() == hf_decay::hf_cand_3prong::DecayChannelMain::DplusToPiKPi)
+              if (cand1.flagMcMatchRec() == hf_decay::hf_cand_3prong::DecayChannelMain::DplusToPiKPi)
+                registry.fill(HIST("hMassDplusPairMatched"), mass2, mass1);
           } else {
             registry.fill(HIST("hMassDminusPair"), mass2, mass1);
           }
