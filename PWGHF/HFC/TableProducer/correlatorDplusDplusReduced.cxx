@@ -283,7 +283,7 @@ struct HfCorrelatorDplusDplusReduced {
     }
   }
 
-  void processData(aod::Collisions const& collisions, SelectedCandidates const& candidates, aod::Tracks const&)
+  void processData(aod::Collisions const& collisions, SelectedCandidates const& candidates, aod::Tracks const&, aod::BCsWithTimestamps const&)
   {
     static int lastRunNumber = -1;
     // reserve memory
