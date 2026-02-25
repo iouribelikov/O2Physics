@@ -324,7 +324,7 @@ struct HfCorrelatorDplusDplusReduced {
   PROCESS_SWITCH(HfCorrelatorDplusDplusReduced, processData, "Process data per collision", false);
 
   void processMcRec(aod::Collisions const& collisions,
-                    SelectedCandidatesMc const& candidates)
+                    SelectedCandidatesMc const& candidates, aod::Tracks const&)
   {
     // reserve memory
     rowCandidateFullEvents.reserve(collisions.size());
