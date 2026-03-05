@@ -185,16 +185,13 @@ struct taskYann {
     // Collision counter...
     hVtx->Fill(collision.posZ());
 
-    for (auto& track : tracks) {
+    for (auto const& track : tracks) {
       if (!isTrackAccepted(track))
         continue;
-
       auto sign = track.sign();
-
-      hTpc->Fill(sign * track.tpcInnerParam(), track.tpcSignal());
-      if (track.hasTOF()) {
-        hTof->Fill(sign * track.p(), tofBeta(track));
-      }
+      auto mom = track.tpcInnerParam();
+      auto dedx = track.tpcSignal();
+      hTpc->Fill(sign * mom, dedx);
 
       int64_t negMotherIdx = -1;
       if constexpr (requires { track.has_mcParticle(); }) {
@@ -207,31 +204,33 @@ struct taskYann {
         }
       }
 
-      for (auto track1 = track + 1; track1 != tracks.end(); ++track1) {
-        auto sign1 = track1.sign();
-        if (sign * sign1 > 0)
+      if (!track.hasTOF()) {
+        if (!isTpcProton(track))
           continue;
+        hTpcPr->Fill(sign * mom, dedx);
+      } else {
+        auto beta = tofBeta(track);
+        hTof->Fill(sign * mom, beta);
+        if (!isTofProton(track))
+          continue;
+        hTofPr->Fill(sign * mom, beta);
+        if (!isTpcProton(track))
+          continue;
+      }
 
+      hTpcTofPr->Fill(sign * mom, dedx);
+
+      if (sign > 0)
+        continue;
+
+      for (auto const& track1 : tracks) {
         if (!isTrackAccepted(track1))
           continue;
+        auto sign1 = track1.sign();
+        if (sign1 < 0)
+          continue;
 
-        auto mom1 = track1.tpcInnerParam();
-        auto dedx1 = track1.tpcSignal();
-        if (!track1.hasTOF()) {
-          if (!isTpcProton(track1))
-            continue;
-          hTpcPr->Fill(sign1 * mom1, dedx1);
-        } else {
-          if (!isTofProton(track1))
-            continue;
-          hTofPr->Fill(sign1 * track1.p(), tofBeta(track1));
-          if (!isTpcProton(track1))
-            continue;
-        }
-
-        hTpcTofPr->Fill(sign1 * mom1, dedx1);
-
-        auto mass = invariantMass(track1, track);
+        auto mass = invariantMass(track, track1);
         hMass->Fill(mass);
 
         if constexpr (requires { track1.has_mcParticle(); }) {
