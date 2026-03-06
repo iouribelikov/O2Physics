@@ -41,6 +41,12 @@ struct taskYann {
   OutputObj<TH1F> hVtx{
     TH1F("hVtx", "Primary vertex position after selection; Z (cm)", 100, -20., 20.)};
 
+  OutputObj<TH1F> hVtxMc{
+    TH1F("hVtxMc", "Primary vertex position in MC; Z (cm)", 100, -20., 20.)};
+
+  OutputObj<TH1F> hSmGr{
+    TH1F("hSmGr", "Small Groups", 10, -0.5, 9.5)};
+
   /*
   OutputObj<TH1F> hMass{
     TH1F("hMass", "Invariant mass; Mpp (GeV)", 4000, 1.8, 3.8)};
@@ -104,7 +110,6 @@ struct taskYann {
 
     if (track.itsNCls() < 7)
       return false;
-
     // Some other selections
 
     return true;
@@ -265,18 +270,32 @@ struct taskYann {
   }
   PROCESS_SWITCH(taskYann, processMcRec, "Process MC at the reconstruction level", true);
 
-  void processMcGen(aod::McParticles& particles)
+  void processMcGen(aod::McCollision const& mccoll, soa::SmallGroups<soa::Join<aod::McCollisionLabels, aod::Collisions>> const& collisions, aod::McParticles const& particles)
   {
+    hSmGr->Fill(collisions.size());
+    if (collisions.size() < 1)
+      return;
+    hVtxMc->Fill(mccoll.posZ());
     for (auto& p : particles) {
       if (abs(p.eta()) > 0.9)
         continue;
       if (abs(p.pt()) < 1.0)
         continue;
+      if (p.isPhysicalPrimary())
+        continue;
+
+      auto code = p.pdgCode();
+      if (abs(code) != kProton)
+        continue;
+      /*
+    if (!p.has_mothers())
+      continue;
+    auto const& mother = p.template mothers_first_as<aod::McParticles>();
+      */
       auto x = p.vx();
       auto y = p.vy();
       if (x * x + y * y > 2 * 2)
         continue;
-      auto code = p.pdgCode();
       hPdgCode->Fill(code);
     }
   }
