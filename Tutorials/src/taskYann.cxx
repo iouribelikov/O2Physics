@@ -198,17 +198,6 @@ struct taskYann {
       auto dedx = track.tpcSignal();
       hTpc->Fill(sign * mom, dedx);
 
-      int64_t negMotherIdx = -1;
-      if constexpr (requires { track.has_mcParticle(); }) {
-        if (track.has_mcParticle()) {
-          auto const& negPart = track.mcParticle();
-          if (negPart.has_mothers()) {
-            auto const& negMother = negPart.template mothers_first_as<aod::McParticles>();
-            negMotherIdx = negMother.globalIndex();
-          }
-        }
-      }
-
       if (!track.hasTOF()) {
         if (!isTpcProton(track))
           continue;
@@ -232,13 +221,22 @@ struct taskYann {
         if (!isTrackAccepted(track1))
           continue;
         auto sign1 = track1.sign();
-        if (sign1 < 0)
+        if (sign1 == sign)
           continue;
 
         auto mass = invariantMass(track, track1);
         hMass->Fill(mass);
 
-        if constexpr (requires { track1.has_mcParticle(); }) {
+        if constexpr (requires { track.has_mcParticle(); track1.has_mcParticle(); }) {
+          if (!track.has_mcParticle())
+            continue;
+          auto const& negPart = track.mcParticle();
+          if (!negPart.has_mothers())
+            continue;
+          auto const& negMother = negPart.template mothers_first_as<aod::McParticles>();
+          if (negMother.pdgCode() != kLambda0Bar)
+            continue;
+
           if (!track1.has_mcParticle())
             continue;
           auto const& posPart = track1.mcParticle();
@@ -246,10 +244,7 @@ struct taskYann {
             continue;
           auto const& posMother = posPart.template mothers_first_as<aod::McParticles>();
 
-          if (posMother.pdgCode() != kLambda0Bar)
-            continue;
-
-          if (posMother.globalIndex() != negMotherIdx)
+          if (posMother.globalIndex() != negMother.globalIndex())
             continue;
 
           hMassMatch->Fill(mass);
