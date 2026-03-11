@@ -71,7 +71,7 @@ struct taskYann {
   OutputObj<TH2F> hTofPr{
     TH2F("hTofPr", "TOF; Momentum (GeV); beta", 500, -5., 5., 220, 0., 1.1)};
 
-  void init(o2::framework::InitContext& ic)
+  void init(o2::framework::InitContext& /*ic*/)
   {
   }
 
@@ -190,25 +190,25 @@ struct taskYann {
     // Collision counter...
     hVtx->Fill(collision.posZ());
 
-    for (auto const& track : tracks) {
-      if (!isTrackAccepted(track))
+    for (auto const& track1 : tracks) {
+      if (!isTrackAccepted(track1))
         continue;
-      auto sign = track.sign();
-      auto mom = track.tpcInnerParam();
-      auto dedx = track.tpcSignal();
+      auto sign = track1.sign();
+      auto mom = track1.tpcInnerParam();
+      auto dedx = track1.tpcSignal();
       hTpc->Fill(sign * mom, dedx);
 
-      if (!track.hasTOF()) {
-        if (!isTpcProton(track))
+      if (!track1.hasTOF()) {
+        if (!isTpcProton(track1))
           continue;
         hTpcPr->Fill(sign * mom, dedx);
       } else {
-        auto beta = tofBeta(track);
+        auto beta = tofBeta(track1);
         hTof->Fill(sign * mom, beta);
-        if (!isTofProton(track))
+        if (!isTofProton(track1))
           continue;
         hTofPr->Fill(sign * mom, beta);
-        if (!isTpcProton(track))
+        if (!isTpcProton(track1))
           continue;
       }
 
@@ -217,29 +217,28 @@ struct taskYann {
       if (sign > 0)
         continue;
 
-      for (auto const& track1 : tracks) {
-        if (!isTrackAccepted(track1))
+      for (auto const& track2 : tracks) {
+        if (!isTrackAccepted(track2))
           continue;
-        auto sign1 = track1.sign();
-        if (sign1 == sign)
+        if (track2.sign() == sign)
           continue;
 
-        auto mass = invariantMass(track, track1);
+        auto mass = invariantMass(track1, track2);
         hMass->Fill(mass);
 
-        if constexpr (requires { track.has_mcParticle(); track1.has_mcParticle(); }) {
-          if (!track.has_mcParticle())
+        if constexpr (requires { track1.has_mcParticle(); track2.has_mcParticle(); }) {
+          if (!track1.has_mcParticle())
             continue;
-          auto const& negPart = track.mcParticle();
+          auto const& negPart = track1.mcParticle();
           if (!negPart.has_mothers())
             continue;
           auto const& negMother = negPart.template mothers_first_as<aod::McParticles>();
           if (negMother.pdgCode() != kLambda0Bar)
             continue;
 
-          if (!track1.has_mcParticle())
+          if (!track2.has_mcParticle())
             continue;
-          auto const& posPart = track1.mcParticle();
+          auto const& posPart = track2.mcParticle();
           if (!posPart.has_mothers())
             continue;
           auto const& posMother = posPart.template mothers_first_as<aod::McParticles>();
