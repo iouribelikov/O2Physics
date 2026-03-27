@@ -36,7 +36,7 @@ Double_t fun2(Double_t* x, Double_t* par)
   return sig1_sig2(x, par) + sig1_bkg2(x, par) + sig2_bkg1(x, par) + bkg1_bkg2(x, par);
 }
 
-void fit2d()
+void fit2d_asym()
 {
   Double_t sig1sig2 = 135., mass = 1.871, sigma2 = 0.009 * 0.009;
   Double_t sig1bkg2 = 600., slope2 = -1.0;
