@@ -36,7 +36,7 @@ using myMcTracks = soa::Join<myTracks, o2::aod::McTrackLabels>;
 
 struct taskYann {
 
-  Configurable<float> cfgZmax{"cfgZmax", 10., "Restriction on the PV position |PVz|<zMax (cm)"};
+  Configurable<float> cfgZmax{"cfgZmax", 10.f, "Restriction on the PV position |PVz|<zMax (cm)"};
 
   OutputObj<TH1F> hVtx{
     TH1F("hVtx", "Primary vertex position after selection; Z (cm)", 100, -20., 20.)};
