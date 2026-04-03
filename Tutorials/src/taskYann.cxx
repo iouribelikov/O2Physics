@@ -37,9 +37,15 @@ using myMcTracks = soa::Join<myTracks, o2::aod::McTrackLabels>;
 struct taskYann {
 
   Configurable<float> cfgZmax{"cfgZmax", 10.f, "Restriction on the PV position |PVz|<zMax (cm)"};
+  Configurable<int> cfgMulMin{"cfgMulMin", 3, "Minimal accepted multiplicity of selected tracks"};
+  Configurable<int> cfgMulMax{"cfgMulMax", 20, "Maximal accepted multiplicity of selected tracks"};
+  Configurable<float> cfgdEdx{"cfgdEdx", 1.12f, "TPC dEdx scale (=1 in MC)"};
 
   OutputObj<TH1F> hVtx{
     TH1F("hVtx", "Primary vertex position after selection; Z (cm)", 100, -20., 20.)};
+
+  OutputObj<TH1F> hMul{
+    TH1F("hMul", "Multiplicity of selected tracks; Num. of selected tracks", 100, -0.5, 99.5)};
 
   OutputObj<TH1F> hVtxMc{
     TH1F("hVtxMc", "Primary vertex position in MC; Z (cm)", 100, -20., 20.)};
@@ -133,7 +139,7 @@ struct taskYann {
   bool isTpcProton(TrackInstance const& track)
   {
     auto p = track.tpcInnerParam();
-    auto dedx = track.tpcSignal();
+    auto dedx = track.tpcSignal() * cfgdEdx;
     if (p < 0.2)
       return false;
     if (dedx < 40)
@@ -187,6 +193,16 @@ struct taskYann {
     if (!isCollisionAccepted(collision))
       return;
 
+    int nt = 0;
+    for (auto const& track : tracks) {
+      if (isTrackAccepted(track))
+        nt++;
+    }
+    if (nt < cfgMulMin)
+      return;
+    if (nt > cfgMulMax)
+      return;
+    hMul->Fill(nt);
     // Collision counter...
     hVtx->Fill(collision.posZ());
 
