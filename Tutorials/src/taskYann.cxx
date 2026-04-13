@@ -85,7 +85,7 @@ struct taskYann {
   bool isCollisionAccepted(aod::Collision const& collision)
   {
     auto z = collision.posZ();
-    if (abs(z) > cfgZmax)
+    if (std::abs(z) > cfgZmax)
       return false;
 
     // Some other selections
