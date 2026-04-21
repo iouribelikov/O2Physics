@@ -43,12 +43,12 @@ struct taskYann {
 
   OutputObj<TH1F> hVtx{
     TH1F("hVtx", "Primary vertex position after selection; Z (cm)", 100, -20., 20.)};
+  OutputObj<TH1F> hVtxMc{
+    TH1F("hVtxMc", "MC Primary vertex position after selection; Z (cm)", 100, -20., 20.)};
 
   OutputObj<TH1F> hMul{
     TH1F("hMul", "Multiplicity of selected tracks; Num. of selected tracks", 100, -0.5, 99.5)};
 
-  OutputObj<TH1F> hVtxMc{
-    TH1F("hVtxMc", "Primary vertex position in MC; Z (cm)", 100, -20., 20.)};
 
   OutputObj<TH1F> hSmGr{
     TH1F("hSmGr", "Small Groups", 10, -0.5, 9.5)};
@@ -59,11 +59,29 @@ struct taskYann {
   */
   OutputObj<TH1F> hMass{
     TH1F("hMass", "Invariant mass; Mppi (GeV)", 50, 1.06, 1.16)};
+
   OutputObj<TH1F> hMassMatch{
     TH1F("hMassMatch", "Invariant mass; Mppi (GeV)", 50, 1.06, 1.16)};
 
+  OutputObj<TH1F> hZvMatch{
+    TH1F("hZvMatch", "Decay Z position; Z (cm)", 50, -25, 25)};
+  OutputObj<TH1F> hRMatch{
+    TH1F("hRMatch", "Decay radius; R (cm)", 50, 0, 5)};
+  OutputObj<TH1F> hYMatch{
+    TH1F("hYMatch", "Rapidiy; Y", 50, -1, 1)};
+  OutputObj<TH1F> hPtMatch{
+    TH1F("hPtMatch", "pt; pt (GeV/c)", 250, 0, 5)};
+
   OutputObj<TH1F> hPdgCode{
     TH1F("hPdgCode", "PDG code; code", 2 * 3200, -3200, 3200)};
+  OutputObj<TH1F> hZvMC{
+    TH1F("hZvMC", "MC Decay Z position; Z (cm)", 50, -25, 25)};
+  OutputObj<TH1F> hRMC{
+    TH1F("hRMC", "MC Decay radius; R (cm)", 50, 0, 5)};
+  OutputObj<TH1F> hYMC{
+    TH1F("hYMC", "MC Rapidiy; Y", 50, -1, 1)};
+  OutputObj<TH1F> hPtMC{
+    TH1F("hPtMC", "MC pt; pt (GeV/c)", 250, 0, 5)};
 
   OutputObj<TH2F> hTpc{
     TH2F("hTpc", "TPC; Momentum (GeV); dE/dx", 400, -4., 4., 200, 0., 1000)};
@@ -105,18 +123,15 @@ struct taskYann {
   template <typename TrackInstance>
   bool isTrackAccepted(TrackInstance const& track)
   {
-    if (!track.hasITS())
-      return false;
-
     if (!track.hasTPC())
       return false;
 
     if (abs(track.tgl()) > 0.9)
       return false;
 
-    if (track.itsNCls() < 7)
-      return false;
     // Some other selections
+    if ((track.itsClusterMap() & 1) == 0)
+      return false;
 
     return true;
   }
@@ -203,12 +218,14 @@ struct taskYann {
     if (nt > cfgMulMax)
       return;
     hMul->Fill(nt);
+
     // Collision counter...
     hVtx->Fill(collision.posZ());
 
     for (auto const& track1 : tracks) {
       if (!isTrackAccepted(track1))
         continue;
+
       auto sign = track1.sign();
       auto mom = track1.tpcInnerParam();
       auto dedx = track1.tpcSignal();
@@ -236,6 +253,7 @@ struct taskYann {
       for (auto const& track2 : tracks) {
         if (!isTrackAccepted(track2))
           continue;
+
         if (track2.sign() == sign)
           continue;
 
@@ -262,7 +280,26 @@ struct taskYann {
           if (posMother.globalIndex() != negMother.globalIndex())
             continue;
 
+          if (!posMother.isPhysicalPrimary())
+            continue;
+
+          if (std::abs(posMother.pt()) < 0.5)
+            continue;
+          if (std::abs(posMother.y()) > 0.5)
+            continue;
+
+          auto vx = posPart.vx();
+          auto vy = posPart.vy();
+          auto vz = posPart.vz();
+          auto r = sqrt(vx*vx+vy*vy);
+          if (r > 2)
+            continue;
+
           hMassMatch->Fill(mass);
+          hZvMatch->Fill(vz);
+          hRMatch->Fill(sqrt(vx*vx+vy*vy));
+          hYMatch->Fill(posMother.y());
+          hPtMatch->Fill(posMother.pt());
         }
       }
     }
@@ -285,28 +322,44 @@ struct taskYann {
     hSmGr->Fill(collisions.size());
     if (collisions.size() < 1)
       return;
-    hVtxMc->Fill(mccoll.posZ());
+    auto vz = mccoll.posZ();
+    if (std::abs(vz) > cfgZmax)
+      return;
+    hVtxMc->Fill(vz);
+
     for (auto& p : particles) {
-      if (abs(p.eta()) > 0.9)
-        continue;
-      if (abs(p.pt()) < 1.0)
-        continue;
-      if (p.isPhysicalPrimary())
+      auto code = p.pdgCode();
+      if (code != kLambda0Bar)
         continue;
 
-      auto code = p.pdgCode();
-      if (abs(code) != kProton)
+      if (!p.isPhysicalPrimary())
         continue;
-      /*
-    if (!p.has_mothers())
-      continue;
-    auto const& mother = p.template mothers_first_as<aod::McParticles>();
-      */
-      auto x = p.vx();
-      auto y = p.vy();
-      if (x * x + y * y > 2 * 2)
+
+      if (!p.has_daughters())
         continue;
-      hPdgCode->Fill(code);
+      auto const& daughters = p.template daughters_as<aod::McParticles>();
+      auto const& daughter = daughters.begin();
+      if (std::abs(daughter.pdgCode()) != kProton)
+      if (std::abs(daughter.pdgCode()) != kPiPlus)
+        continue;
+
+      if (std::abs(p.pt()) < 0.5)
+        continue;
+      if (std::abs(p.y()) > 0.5)
+        continue;
+
+      auto x = daughter.vx();
+      auto y = daughter.vy();
+      auto z = daughter.vz();
+      auto r = sqrt(x*x + y*y);
+      if (r > 2.)
+        continue;
+
+      hPdgCode->Fill(p.pdgCode());
+      hYMC->Fill(p.y());
+      hPtMC->Fill(p.pt());
+      hRMC->Fill(r);
+      hZvMC->Fill(z);
     }
   }
   PROCESS_SWITCH(taskYann, processMcGen, "Process MC at the generator level", true);
