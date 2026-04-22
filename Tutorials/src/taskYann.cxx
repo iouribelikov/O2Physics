@@ -123,9 +123,6 @@ struct taskYann {
   template <typename TrackInstance>
   bool isTrackAccepted(TrackInstance const& track)
   {
-    if (!track.hasTPC())
-      return false;
-
     if (abs(track.tgl()) > 0.9)
       return false;
 
@@ -223,6 +220,8 @@ struct taskYann {
     hVtx->Fill(collision.posZ());
 
     for (auto const& track1 : tracks) {
+      if (!track1.hasTPC())
+        continue;
       if (!isTrackAccepted(track1))
         continue;
 
