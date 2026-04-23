@@ -71,6 +71,8 @@ struct taskYann {
     TH1F("hYMatch", "Rapidiy; Y", 50, -1, 1)};
   OutputObj<TH1F> hPtMatch{
     TH1F("hPtMatch", "pt; pt (GeV/c)", 250, 0, 5)};
+  OutputObj<TH1F> hProtonMatch{
+    TH1F("hProtonMatch", "pt of proton; pt (GeV/c)", 250, 0, 5)};
 
   OutputObj<TH1F> hPdgCode{
     TH1F("hPdgCode", "PDG code; code", 2 * 3200, -3200, 3200)};
@@ -82,6 +84,8 @@ struct taskYann {
     TH1F("hYMC", "MC Rapidiy; Y", 50, -1, 1)};
   OutputObj<TH1F> hPtMC{
     TH1F("hPtMC", "MC pt; pt (GeV/c)", 250, 0, 5)};
+  OutputObj<TH1F> hProtonMC{
+    TH1F("hProtonMC", "MC pt of proton; pt (GeV/c)", 250, 0, 5)};
 
   OutputObj<TH2F> hTpc{
     TH2F("hTpc", "TPC; Momentum (GeV); dE/dx", 400, -4., 4., 200, 0., 1000)};
@@ -249,6 +253,16 @@ struct taskYann {
       if (sign > 0)
         continue;
 
+      if constexpr (requires { track1.has_mcParticle(); }) {
+        if (!track1.has_mcParticle())
+          continue;
+        auto const& p = track1.mcParticle();
+        if (p.pdgCode() == kProtonBar)
+          if (std::abs(p.pt()) > 0.5)
+            if (std::abs(p.y()) < 0.5)
+              hProtonMatch->Fill(p.pt());
+      }
+
       for (auto const& track2 : tracks) {
         if (!isTrackAccepted(track2))
           continue;
@@ -327,11 +341,19 @@ struct taskYann {
     hVtxMc->Fill(vz);
 
     for (auto& p : particles) {
-      auto code = p.pdgCode();
-      if (code != kLambda0Bar)
+      if (!p.isPhysicalPrimary())
         continue;
 
-      if (!p.isPhysicalPrimary())
+      if (std::abs(p.pt()) < 0.5)
+        continue;
+      if (std::abs(p.y()) > 0.5)
+        continue;
+
+      auto code = p.pdgCode();
+      if (code == kProtonBar)
+        hProtonMC->Fill(p.pt());
+
+      if (code != kLambda0Bar)
         continue;
 
       if (!p.has_daughters())
@@ -350,11 +372,6 @@ struct taskYann {
           etaOK = false;
       }
       if (!etaOK)
-        continue;
-
-      if (std::abs(p.pt()) < 0.5)
-        continue;
-      if (std::abs(p.y()) > 0.5)
         continue;
 
       auto x = daughter.vx();
