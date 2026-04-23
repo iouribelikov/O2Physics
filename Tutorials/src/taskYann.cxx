@@ -337,9 +337,19 @@ struct taskYann {
       if (!p.has_daughters())
         continue;
       auto const& daughters = p.template daughters_as<aod::McParticles>();
+      if (daughters.size() != 2)
+        continue;
+
       auto const& daughter = daughters.begin();
-      if (std::abs(daughter.pdgCode()) != kProton)
-      if (std::abs(daughter.pdgCode()) != kPiPlus)
+      if (daughter.pdgCode() != kProtonBar)
+        continue;
+
+      auto etaOK = true;
+      for (auto const& d : daughters) {
+        if (std::abs(d.eta()) > 0.9)
+          etaOK = false;
+      }
+      if (!etaOK)
         continue;
 
       if (std::abs(p.pt()) < 0.5)
