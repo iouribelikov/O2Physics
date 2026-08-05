@@ -36,7 +36,7 @@ o2physics_add_dpl_workflow(task-correlation-d-meson-pairs
 
 o2physics_add_dpl_workflow(task-correlation-dplus-dplus-reduced
                     SOURCES taskCorrelationDplusDplusReduced.cxx
-                    PUBLIC_LINK_LIBRARIES O2Physics::AnalysisCore
+                    PUBLIC_LINK_LIBRARIES O2Physics::AnalysisCore O2Physics::MLCore
                     COMPONENT_NAME Analysis)
 
 o2physics_add_dpl_workflow(task-correlation-dplus-hadrons

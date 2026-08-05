@@ -20,6 +20,8 @@
 #include "PWGHF/Core/DecayChannels.h"
 #include "PWGHF/HFC/DataModel/ReducedDMesonPairsTables.h"
 
+#include "Tools/ML/MlResponse.h"
+
 #include <Framework/ASoA.h>
 #include <Framework/AnalysisTask.h>
 #include <Framework/Configurable.h>
@@ -35,14 +37,34 @@ using namespace o2;
 using namespace o2::framework;
 using namespace o2::framework::expressions;
 
+static constexpr double defaultCutsMl[1][3] = {{0.5, 0.5, 0.5}};
+
 struct HfTaskCorrelationDplusDplusReduced {
   Configurable<int> selectionFlagDplus{"selectionFlagDplus", 1, "Selection Flag for Dplus"};
 
-  using SelectedCandidates = soa::Filtered<o2::aod::HfCandDpTinys>;
+  Configurable<bool> applyML{"applyML", 0, "Apply the ML if true"};
+  // ML inference
+  Configurable<std::vector<double>> binsPtMl{"binsPtMl", std::vector<double>{1., 5000.}, "pT bin limits for ML application"};
+  Configurable<std::vector<int>> cutDirMl{"cutDirMl", std::vector<int>{cuts_ml::CutSmaller, cuts_ml::CutNot, cuts_ml::CutNot}, "Whether to reject score values greater or smaller than the threshold"};
+  Configurable<LabeledArray<double>> cutsMl{"cutsMl", {defaultCutsMl[0], 1, 3, {"pT bin 0"}, {"score prompt", "score non-prompt", "score bkg"}}, "ML selections per pT bin"};
+  //Configurable<int8_t> nClassesMl{"nClassesMl", (int8_t)3, "Number of classes in ML model"};
+  Configurable<int> nClassesMl{"nClassesMl", 3, "Number of classes in ML model"};
+  // Model file names
+  Configurable<std::vector<std::string>> onnxFileNames{"onnxFileNames", std::vector<std::string>{"ModelHandler_onnx_DplusToPiKPi.onnx"}, "ONNX file names for each pT bin (if not from CCDB full path)"};
+  // Bonus: CCDB configuration (needed for ML application on the GRID)
+  Configurable<bool> loadModelsFromCCDB{"loadModelsFromCCDB", true, "Flag to enable or disable the loading of models from CCDB"};
+  Configurable<std::string> ccdbUrl{"ccdbUrl", "http://alice-ccdb.cern.ch", "url of the ccdb repository"};
+  Configurable<std::vector<std::string>> modelPathsCCDB{"modelPathsCCDB", std::vector<std::string>{"EventFiltering/PWGHF/BDTSmearedDplus/"}, "Path on CCDB"};
+  Configurable<int64_t> timestampCCDB{"timestampCCDB", -1, "timestamp of the ONNX file for ML model used to query in CCDB"};
+
+  //using SelectedCandidates = soa::Filtered<o2::aod::HfCandDpTinys>;
+  using SelectedCandidates = soa::Filtered<o2::aod::HfCandDpFulls>;
   using SelectedMcParticles = o2::aod::HfCandDpMcPs;
 
   Filter filterSelectCandidates = aod::full::candidateSelFlag >= selectionFlagDplus;
 
+  o2::ccdb::CcdbApi ccdbApi;
+  
   HistogramConfigSpec hTH1NCand{HistType::kTH1F, {{7, -0.5, 6.5}}};
   HistogramConfigSpec hTH1NMcRec{HistType::kTH1F, {{7, -0.5, 6.5}}};
   HistogramConfigSpec hTH1NMcGen{HistType::kTH1F, {{7, -0.5, 6.5}}};
@@ -51,6 +73,10 @@ struct HfTaskCorrelationDplusDplusReduced {
     {{"hNCand", "Number of D candidates per event;N", hTH1NCand},
      {"hNMcRec", "Number of reconstructed Mc D mesons per event;N", hTH1NMcRec},
      {"hNMcGen", "Number of generated Mc D mesons per event;N", hTH1NMcGen}}};
+
+  // Add objects needed for ML inference
+  std::vector<float> outputMl = {};
+  o2::analysis::MlResponse<float> mlResponse;
 
   void init(InitContext const&)
   {
@@ -62,6 +88,26 @@ struct HfTaskCorrelationDplusDplusReduced {
     registry.add("hMassDplusPair", "D plus pair candidates;inv. mass (#pi K) (GeV/#it{c}^{2});inv. mass (#pi K) (GeV/#it{c}^{2})", {HistType::kTH2F, {{120, 1.5848, 2.1848}, {120, 1.5848, 2.1848}}});
     registry.add("hMassDminusPair", "D minus pair candidates;inv. mass (#pi K) (GeV/#it{c}^{2});inv. mass (#pi K) (GeV/#it{c}^{2})", {HistType::kTH2F, {{120, 1.5848, 2.1848}, {120, 1.5848, 2.1848}}});
     registry.add("hDltPhiMcGen", "Azimuthal correlation for D mesons; #Delta#phi", {HistType::kTH1F, {{100, -3.141593, 3.141593}}});
+
+    registry.add("hPrompt", "Prompt score; Score", {HistType::kTH1F, {{100, 0, 1}}});
+    registry.add("hNonPrompt", "Non-prompt score; Score", {HistType::kTH1F, {{100, 0, 1}}});
+    registry.add("hBkg", "Background score; Score", {HistType::kTH1F, {{100, 0, 1}}});
+    registry.add("hPromptMatched", "Prompt score matched; Score", {HistType::kTH1F, {{100, 0, 1}}});
+    registry.add("hNonPromptMatched", "Non-prompt score matched; Score", {HistType::kTH1F, {{100, 0, 1}}});
+    registry.add("hBkgMatched", "Background score matched; Score", {HistType::kTH1F, {{100, 0, 1}}});
+
+    // Configure and initialise the ML class
+    mlResponse.configure(binsPtMl, cutsMl, cutDirMl, nClassesMl);
+
+    if (loadModelsFromCCDB) {
+      ccdbApi.init(ccdbUrl);
+      mlResponse.setModelPathsCCDB(onnxFileNames, ccdbApi, modelPathsCCDB.value, timestampCCDB);
+    } else {
+      mlResponse.setModelPathsLocal(onnxFileNames);
+    }
+
+    mlResponse.init();
+
   }
 
   void processLocalData(o2::aod::HfCandDpFullEvs::iterator const&,
@@ -105,6 +151,19 @@ struct HfTaskCorrelationDplusDplusReduced {
     registry.fill(HIST("hNMcRec"), localCandidates.size());
 
     for (const auto& cand1 : localCandidates) {
+      std::vector<float> inputFeatures{cand1.ptProng0(), cand1.impactParameter0(), cand1.impactParameterZ0(),
+                                       cand1.ptProng1(), cand1.impactParameter1(), cand1.impactParameterZ1(),
+                                       cand1.ptProng2(), cand1.impactParameter2(), cand1.impactParameterZ2()};
+      auto pt=std::abs(cand1.pt());
+      //if (pt<1) continue;
+
+      bool isSelMl = mlResponse.isSelectedMl(inputFeatures, pt, outputMl);
+      if (outputMl[2] < 0.04) continue;  // Bkg score
+
+      registry.fill(HIST("hPrompt"), outputMl[0]);
+      registry.fill(HIST("hNonPrompt"), outputMl[1]);
+      registry.fill(HIST("hBkg"), outputMl[2]);
+      
       auto mass1 = cand1.m();
       if (cand1.pt() < 0) {
         registry.fill(HIST("hMassDminus"), mass1);
@@ -112,8 +171,12 @@ struct HfTaskCorrelationDplusDplusReduced {
           registry.fill(HIST("hMassDminusMatched"), mass1);
       } else {
         registry.fill(HIST("hMassDplus"), mass1);
-        if (std::abs(cand1.flagMcMatchRec()) == hf_decay::hf_cand_3prong::DecayChannelMain::DplusToPiKPi)
+        if (std::abs(cand1.flagMcMatchRec()) == hf_decay::hf_cand_3prong::DecayChannelMain::DplusToPiKPi) {
           registry.fill(HIST("hMassDplusMatched"), mass1);
+          registry.fill(HIST("hPromptMatched"), outputMl[0]);
+          registry.fill(HIST("hNonPromptMatched"), outputMl[1]);
+          registry.fill(HIST("hBkgMatched"), outputMl[2]);
+        }
       }
     }
   }
